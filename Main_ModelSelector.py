@@ -35,9 +35,9 @@ def eval_one_epoch(net, testLoader, args):
     cnt = 0
     for srcPC, tmpPC, label in tqdm(testLoader):
         if (args.cuda):
-            srcPC = srcPC.to(args.device)
-            tmpPC = tmpPC.to(args.device)
-            label = label.to(args.device)
+            srcPC = srcPC.cuda()
+            tmpPC = tmpPC.cuda()
+            label = label.cuda()
         clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
         clsLoss = F.nll_loss(clsProbVec, label.squeeze())
         l1Loss = F.l1_loss(globalFeat, globalFeat2)
@@ -57,9 +57,9 @@ def train_one_epoch(net, opt, trainLoader, args):
     cnt = 0
     for srcPC, tmpPC, label in tqdm(trainLoader):
         if (args.cuda):
-            srcPC = srcPC.to(args.device)
-            tmpPC = tmpPC.to(args.device)
-            label = label.to(args.device)
+            srcPC = srcPC.cuda()
+            tmpPC = tmpPC.cuda()
+            label = label.cuda()
         opt.zero_grad()
         
         clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
@@ -125,14 +125,14 @@ def SaveModel(net, DIR_PATH, modelName, multiCudaF):
 def CalBestTemplate(net, testLoader, args):
     srcPoints, candidatePointsList, srcPath, candidatePaths = testLoader.GetRandomTestSet(60, srcRotateF=True)
     srcPoints = torch.tensor(srcPoints).view(1, -1, 3)
-    if (args.cuda): srcPoints = srcPoints.to(args.device)
+    if (args.cuda): srcPoints = srcPoints.cuda()
     
     rankList = []
     
     net.eval()
     for i, candidatePoints in enumerate(candidatePointsList):
         candidatePoints = torch.tensor(candidatePoints).view(1, -1, 3)
-        if (args.cuda): candidatePoints = candidatePoints.to(args.device)
+        if (args.cuda): candidatePoints = candidatePoints.cuda()
         _, srcFeat, tmpFeat = net(srcPoints, candidatePoints)
         if (args.cuda): srcFeat = srcFeat.cpu()
         if (args.cuda): tmpFeat = tmpFeat.cpu()
@@ -212,12 +212,12 @@ if (__name__ == '__main__'):
         print("Let's use", torch.cuda.device_count(), "GPUs!")
     elif (torch.device(args.cudaDevice)):
         device = torch.device(args.cudaDevice)
+        torch.cuda.set_device(device.index)
         args.multiCuda = False
     else:
         device = torch.device('cpu')
         args.cuda = False
         args.multiCuda = False
-    args.device = device
     net.to(device)
     textLog.writeLog(args.__str__())
     if (not args.eval):
