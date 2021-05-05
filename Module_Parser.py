@@ -44,4 +44,5 @@ def ModelSelectorParser():
                         default='log_ModelSelector.txt', help='Log file name')
     parser.add_argument('--L1Loss', action='store_true', 
                         default=False, help='Using L1 loss')
+    parser.add_argument('--device', type=str, default='cuda:0')
     return parser.parse_args()

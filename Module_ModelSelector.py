@@ -17,7 +17,7 @@ from torch.autograd import Variable
 #                           PointNet
 #############################################################
 class STNkd(nn.Module):
-    def __init__(self, k=64):
+    def __init__(self, k=64, device=torch.device('cuda:0')):
         super(STNkd, self).__init__()
         self.conv1 = torch.nn.Conv1d(k, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
@@ -35,6 +35,7 @@ class STNkd(nn.Module):
         self.bn5 = nn.BatchNorm1d(256)
 
         self.k = k
+        self.device = device
 
     def forward(self, x):
         batchsize = x.size()[0]
@@ -50,16 +51,16 @@ class STNkd(nn.Module):
 
         iden = Variable(torch.from_numpy(np.eye(self.k).flatten().astype(np.float32))).view(1,self.k*self.k).repeat(batchsize,1)
         if x.is_cuda:
-            iden = iden.cuda()
+            iden = iden.to(self.device)
         x = x + iden
         x = x.view(-1, self.k, self.k)
         return x
 
 
 class PointNetfeat(nn.Module):
-    def __init__(self, global_feat = True, feature_transform = False):
+    def __init__(self, global_feat = True, feature_transform = False, device = torch.device('cuda:0')):
         super(PointNetfeat, self).__init__()
-        self.stn = STNkd(k=3)
+        self.stn = STNkd(k=3, device=device)
         self.conv1 = torch.nn.Conv1d(3, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
         self.conv3 = torch.nn.Conv1d(128, 1024, 1)
@@ -69,7 +70,7 @@ class PointNetfeat(nn.Module):
         self.global_feat = global_feat
         self.feature_transform = feature_transform
         if self.feature_transform:
-            self.fstn = STNkd(k=64)
+            self.fstn = STNkd(k=64, device=device)
 
     def forward(self, x):
         n_pts = x.size()[1]
@@ -271,7 +272,7 @@ sys.path.append('D:\\Downloads\\votenet-master\\pointnet2')
 from pointnet2_modules import PointnetSAModule
 
 class PointNet2(nn.Module):
-    def __init__(self, input_feat_dim = 3, k = 40):
+    def __init__(self, input_feat_dim = 0, k = 40):
         super().__init__()
         self.sa1 = PointnetSAModule(npoint=512, 
                                     radius=0.2, 

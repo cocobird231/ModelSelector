@@ -35,9 +35,9 @@ def eval_one_epoch(net, testLoader, args):
     cnt = 0
     for srcPC, tmpPC, label in tqdm(testLoader):
         if (args.cuda):
-            srcPC = srcPC.cuda()
-            tmpPC = tmpPC.cuda()
-            label = label.cuda()
+            srcPC = srcPC.to(args.device)
+            tmpPC = tmpPC.to(args.device)
+            label = label.to(args.device)
         clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
         clsLoss = F.nll_loss(clsProbVec, label.squeeze())
         l1Loss = F.l1_loss(globalFeat, globalFeat2)
@@ -57,9 +57,9 @@ def train_one_epoch(net, opt, trainLoader, args):
     cnt = 0
     for srcPC, tmpPC, label in tqdm(trainLoader):
         if (args.cuda):
-            srcPC = srcPC.cuda()
-            tmpPC = tmpPC.cuda()
-            label = label.cuda()
+            srcPC = srcPC.to(args.device)
+            tmpPC = tmpPC.to(args.device)
+            label = label.to(args.device)
         opt.zero_grad()
         
         clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
@@ -125,14 +125,14 @@ def SaveModel(net, DIR_PATH, modelName, multiCudaF):
 def CalBestTemplate(net, testLoader, args):
     srcPoints, candidatePointsList, srcPath, candidatePaths = testLoader.GetRandomTestSet(60, srcRotateF=True)
     srcPoints = torch.tensor(srcPoints).view(1, -1, 3)
-    if (args.cuda): srcPoints = srcPoints.cuda()
+    if (args.cuda): srcPoints = srcPoints.to(args.device)
     
     rankList = []
     
     net.eval()
     for i, candidatePoints in enumerate(candidatePointsList):
         candidatePoints = torch.tensor(candidatePoints).view(1, -1, 3)
-        if (args.cuda): candidatePoints = candidatePoints.cuda()
+        if (args.cuda): candidatePoints = candidatePoints.to(args.device)
         _, srcFeat, tmpFeat = net(srcPoints, candidatePoints)
         if (args.cuda): srcFeat = srcFeat.cpu()
         if (args.cuda): tmpFeat = tmpFeat.cpu()
@@ -202,7 +202,7 @@ if (__name__ == '__main__'):
     if (args.featModel == 'pointnet'):
         net = PointNetCls(k=40, feature_transform=True)
     elif (args.featModel == 'pointnet2'):
-        net = PointNet2(input_feat_dim=3, k=40)
+        net = PointNet2(k=40)
     if (not torch.cuda.is_available() or not args.cuda):
         device = torch.device('cpu')
         args.cuda = False
@@ -217,6 +217,7 @@ if (__name__ == '__main__'):
         device = torch.device('cpu')
         args.cuda = False
         args.multiCuda = False
+    args.device = device
     net.to(device)
     textLog.writeLog(args.__str__())
     if (not args.eval):
