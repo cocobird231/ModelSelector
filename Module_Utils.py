@@ -12,6 +12,116 @@ from scipy.spatial.transform import Rotation as R
 
 DEG2RAD = 3.1415926 / 180.0
 
+
+#############################################################
+#                       Class Definition
+#############################################################
+class Rigid():
+    def __init__(self, rotation = 0, translation = 0, eulerAng = [], getRandF = False):
+        self.rotation = rotation
+        self.translation = translation
+        self.eulerAng = eulerAng
+        if (getRandF) : self.getRandomRigid()
+    
+    def getRandomRigid(self, angleRange = 90, translationRange = 0.5):
+        anglex = np.random.uniform(-angleRange, angleRange) * DEG2RAD
+        angley = np.random.uniform(-angleRange, angleRange) * DEG2RAD
+        anglez = np.random.uniform(-angleRange, angleRange) * DEG2RAD
+        self.eulerAng = np.asarray([anglez, angley, anglex]).astype('float32')
+        self.rotation = R.from_euler('zyx', self.eulerAng).as_matrix().astype('float32')
+        self.translation = np.array([np.random.uniform(-translationRange, translationRange), 
+                                     np.random.uniform(-translationRange, translationRange), 
+                                     np.random.uniform(-translationRange, translationRange)]).astype('float32')
+
+    def getInvRigid(self):
+        rotation_inv = self.rotation.T
+        translation_inv = -rotation_inv.dot(self.translation)
+        eulerAng_inv = -self.eulerAng[::-1]
+        return Rigid(rotation_inv, translation_inv, eulerAng_inv)
+
+
+class UnitModelUtils:
+    def __init__(self, modelPath = '', translation = np.zeros(3), rotation = np.eye(3), scale = 1.0, label = 'None'):
+        self.translation = translation
+        self.rotation = rotation
+        self.scale = scale
+        self.modelPath = modelPath
+        self.label = label
+
+
+class ModelUtils:
+    def __init__(self, model, label, path : str):
+        self.model = model
+        self.path = path
+        self.label = label
+    
+    def _getOutputStr(self):
+        def strQuote(item, maxShow : int):
+            if (type(item) == str):
+                return "'%s%s'" %(('...', item[-maxShow + 3:]) if len(item) > maxShow else ('', item[-maxShow:]))
+            item = str(item)
+            return '%s%s' %(('...', item[-maxShow + 3:]) if len(item) > maxShow else ('', item[-maxShow:]))
+        
+        showPathLen = 20
+        showLabelLen = 10
+        return '[ModelUtils] <(shape)%s (label)%s (path)%s>' %(self.model.shape if 'shape' in dir(self.model) else 'None', 
+                                                               strQuote(self.label, showLabelLen), 
+                                                               strQuote(self.path, showPathLen))
+
+    def __repr__(self):
+        return self._getOutputStr()
+    
+    def __str__(self):
+        return self._getOutputStr()
+
+
+class textIO:
+    def __init__(self, args):
+        self.f = open(os.path.join(args.saveModelDir, args.logName), 'a')
+    
+    def writeLog(self, string, printF = True):
+        print(string)
+        self.f.write(string + '\n')
+        self.f.flush()
+    
+    def close(self, nextLineF = True):
+        if (nextLineF):
+            self.f.write('\n')
+        self.f.close()
+    
+    def __del__(self):
+        self.f.close()
+        print('textIO destructor called')
+#############################################################
+#                   Class Definition End
+#############################################################
+
+
+
+#############################################################
+#                   Point Cloud Process
+#############################################################
+def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
+    N, C = pointcloud.shape
+    pointcloud += np.clip(sigma * np.random.randn(N, C), -1 * clip, clip)
+    return pointcloud
+
+
+def scaling_pointCloud(pointcloud, scalingScalar = 0.2):
+    coeff = np.random.uniform(1 - scalingScalar, 1 + scalingScalar)
+    pointcloud = pointcloud * coeff
+    return pointcloud
+
+
+def rotate_pointCloud(pointcloud, rig = Rigid(getRandF=True)):
+    assert type(rig) == type(Rigid()) and pointcloud.shape[1] == 3, 'Input type error: %d' %pointcloud.shape[1]
+    pointcloud = ((rig.rotation @ pointcloud.T).T + rig.translation)
+    return pointcloud
+
+
+#############################################################
+#                       ICP Implementation
+#############################################################
 def ICPIter(templatePC, targetPC, initTransform, iterSize = 50, iterStep = 0.2):
     ICP_TRANSFORM = o3d.pipelines.registration.registration_icp(
         templatePC, targetPC, iterStep, initTransform, 
@@ -40,7 +150,38 @@ def ICPMotion(ICP_PC, tempPC, defaultTrans, iterSize, iterStep):
     # viewer.run()
     viewer.remove_geometry(ICP_PC)
     viewer.remove_geometry(tempPC)
+    return
 
+
+#############################################################
+#               ModelNet40 Dataset Implementation
+#############################################################
+def WalkModelNet40ByCatName(DIR_PATH : str, CAT_PATH : str, extName : str = '.off', retFile : str = 'path'):
+    assert retFile == 'all' or retFile == 'path' or retFile == 'name'
+    filePathList = []
+    fileNameList = []
+    for dirpath, dirnames, filename in os.walk(os.path.join(DIR_PATH, CAT_PATH)):
+        for modelName in filename:
+            if (modelName[-len(extName):] == extName):
+                filePathList.append(os.path.join(dirpath, modelName))
+                fileNameList.append(modelName)
+    if (retFile == 'all') : return filePathList, fileNameList
+    if (retFile == 'path') : return filePathList
+    if (retFile == 'name') : return fileNameList
+
+
+def WalkModelNet40CatDIR(DIR_PATH : str):
+    catList = []
+    for dirpath, dirnames, filename in os.walk(DIR_PATH):
+        for catdir in dirnames:
+            catList.append(catdir)
+        break
+    return catList
+
+
+#############################################################
+#                   Visualization Implementation
+#############################################################
 def DrawAxis(length = 10):
     points = [[0, 0, 0], [length, 0, 0], [0, length, 0], [0, 0, length]]
     lines = [[0, 1], [0, 2], [0, 3]]# x, y, z
@@ -51,122 +192,9 @@ def DrawAxis(length = 10):
     line_set.colors = o3d.utility.Vector3dVector(colors)
     return line_set
 
+
+#############################################################
+#                       Other Implementation
+#############################################################
 def GetZAxisRotateMat(ang : float):# The ang must be an angle value, follow permutation x-y-z
     return R.from_euler('xyz', [0, 0, ang], degrees = True).as_matrix()
-
-
-class Rigid():
-    def __init__(self, rotation = 0, translation = 0, eulerAng = [], getRandF = False):
-        self.rotation = rotation
-        self.translation = translation
-        self.eulerAng = eulerAng
-        if (getRandF) : self.getRandomRigid()
-    
-    def getRandomRigid(self, angleRange = 90, translationRange = 0.5):
-        anglex = np.random.uniform(-angleRange, angleRange) * DEG2RAD
-        angley = np.random.uniform(-angleRange, angleRange) * DEG2RAD
-        anglez = np.random.uniform(-angleRange, angleRange) * DEG2RAD
-        self.eulerAng = np.asarray([anglez, angley, anglex]).astype('float32')
-        self.rotation = R.from_euler('zyx', self.eulerAng).as_matrix().astype('float32')
-        self.translation = np.array([np.random.uniform(-translationRange, translationRange), 
-                                     np.random.uniform(-translationRange, translationRange), 
-                                     np.random.uniform(-translationRange, translationRange)]).astype('float32')
-
-
-    def getInvRigid(self):
-        rotation_inv = self.rotation.T
-        translation_inv = -rotation_inv.dot(self.translation)
-        eulerAng_inv = -self.eulerAng[::-1]
-        return Rigid(rotation_inv, translation_inv, eulerAng_inv)
-
-
-def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
-    N, C = pointcloud.shape
-    pointcloud += np.clip(sigma * np.random.randn(N, C), -1 * clip, clip)
-    return pointcloud
-
-
-def scaling_pointCloud(pointcloud, scalingScalar = 0.2):
-    coeff = np.random.uniform(1 - scalingScalar, 1 + scalingScalar)
-    pointcloud = pointcloud * coeff
-    return pointcloud
-
-
-def rotate_pointCloud(pointcloud, rig = Rigid(getRandF=True)):
-    assert type(rig) == type(Rigid()) and pointcloud.shape[1] == 3, 'Input type error: %d' %pointcloud.shape[1]
-    pointcloud = ((rig.rotation @ pointcloud.T).T + rig.translation)
-    return pointcloud
-
-
-class UnitModelUtils:
-    def __init__(self, modelPath = '', translation = np.zeros(3), rotation = np.eye(3), scale = 1.0, label = 'None'):
-        self.translation = translation
-        self.rotation = rotation
-        self.scale = scale
-        self.modelPath = modelPath
-        self.label = label
-
-
-class ModelUtils:
-    def __init__(self, model, label, path : str):
-        self.model = model
-        self.path = path
-        self.label = label
-    
-    def _getOutputStr(self):
-        def strQuote(item, maxShow : int):
-            if (type(item) == str):
-                return "'%s%s'" %(('...', item[-maxShow + 3:]) if len(item) > maxShow else ('', item[-maxShow:]))
-            item = str(item)
-            return '%s%s' %(('...', item[-maxShow + 3:]) if len(item) > maxShow else ('', item[-maxShow:]))
-        
-        showPathLen = 20
-        showLabelLen = 10
-        return '[ModelUtils] <(shape)%s (label)%s (path)%s>' %(self.model.shape if 'shape' in dir(self.model) else 'None', 
-                                                                  strQuote(self.label, showLabelLen), 
-                                                                  strQuote(self.path, showPathLen))
-
-    
-    def __repr__(self):
-        return self._getOutputStr()
-    
-    def __str__(self):
-        return self._getOutputStr()
-
-
-class textIO:
-    def __init__(self, args):
-        self.f = open(os.path.join(args.saveModelDir, args.logName), 'a')
-    
-    def writeLog(self, string, printF = True):
-        print(string)
-        self.f.write(string + '\n')
-        self.f.flush()
-    
-    def close(self, nextLineF = True):
-        if (nextLineF):
-            self.f.write('\n')
-        self.f.close()
-    
-    def __del__(self):
-        self.f.close()
-        print('textIO destructor called')
-
-
-
-def WalkModelNet40ByCatName(DIR_PATH : str, CAT_PATH : str, extName : str = '.off'):
-    filePathList = []
-    for dirpath, dirnames, filename in os.walk(os.path.join(DIR_PATH, CAT_PATH)):
-        for modelName in filename:
-            if (modelName[-len(extName):] == extName):
-                filePathList.append(os.path.join(dirpath, modelName))
-    return filePathList
-
-
-def WalkModelNet40CatDIR(DIR_PATH : str):
-    catList = []
-    for dirpath, dirnames, filename in os.walk(DIR_PATH):
-        for catdir in dirnames:
-            catList.append(catdir)
-        break
-    return catList

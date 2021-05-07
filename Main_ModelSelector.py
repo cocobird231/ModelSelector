@@ -113,6 +113,7 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
             boardLog.add_scalar('valid/best_loss', bestValidLoss, epoch)
             boardLog.add_scalar('valid/clsLoss', clsLoss, epoch)
             boardLog.add_scalar('valid/l1Loss', l1Loss, epoch)
+    return
 
 
 def SaveModel(net, DIR_PATH, modelName, multiCudaF):
@@ -120,19 +121,20 @@ def SaveModel(net, DIR_PATH, modelName, multiCudaF):
         torch.save(net.module.state_dict(), os.path.join(DIR_PATH, modelName))
     else:
         torch.save(net.state_dict(), os.path.join(DIR_PATH, modelName))
+    return
 
 
-def CalBestTemplate2(net, testLoader, args):
+def CalBestTemplate(net, testLoader, args):
     net.eval()
     totalRankDict = {'Rank 1' : 0, 'Rank 3' : 0, 'Rank 5' : 0, 
-                     'Rank 10' : 0, 'Rank 20' : 0, 'Rank 50' : 0, 'Out of Rank' : 0}
+                     'Rank 10' : 0, 'Rank 20' : 0, 'Rank 30' : 0, 'Out of Rank' : 0}
     for srcModelU, catModelUList, pathAns in testLoader:
-        srcPCD = srcModelU.model
+        srcPCD = srcModelU.model.astype('float32')
         srcPts = torch.tensor(srcPCD).view(1, -1, 3)
         if (args.cuda) : srcPts = srcPts.cuda()
         rankList = []
         for catModelU in catModelUList:
-            catPCD = catModelU.model
+            catPCD = catModelU.model.astype('float32')
             catPts = torch.tensor(catPCD).view(1, -1, 3)
             if (args.cuda) : catPts = catPts.cuda()
             _, srcFeat, tmpFeat = net(srcPts, catPts)
@@ -141,7 +143,7 @@ def CalBestTemplate2(net, testLoader, args):
             srcFeat = srcFeat.detach().numpy().squeeze()
             tmpFeat = tmpFeat.detach().numpy().squeeze()
             loss = np.mean(np.abs(srcFeat - tmpFeat))
-            print('%s %s: %f' %(srcModelU.path[-20:], catModelU.path[-20:], loss))
+            # print('%s %s: %f' %(srcModelU.path[-20:], catModelU.path[-20:], loss))
             rankList.append([catModelU.path, loss])
         rankList = sorted(rankList, key=itemgetter(1))
         rankPathList = np.array(rankList)[:,0]
@@ -156,73 +158,14 @@ def CalBestTemplate2(net, testLoader, args):
             rank = 'Rank 10'
         elif (pathAns in rankPathList[:20]):
             rank = 'Rank 20'
-        elif (pathAns in rankPathList[:50]):
-            rank = 'Rank 50'
+        elif (pathAns in rankPathList[:30]):
+            rank = 'Rank 30'
         else:
             rank = 'Out of Rank'
-        print(rank)
+        print(srcModelU.path, rank)
         totalRankDict[rank] += 1
     print(totalRankDict)
     return
-
-
-def CalBestTemplate(net, testLoader, args):
-    srcPoints, candidatePointsList, srcPath, candidatePaths = testLoader.GetRandomTestSet(60, srcRotateF=True)
-    srcPoints = torch.tensor(srcPoints).view(1, -1, 3)
-    if (args.cuda): srcPoints = srcPoints.cuda()
-    
-    rankList = []
-    
-    net.eval()
-    for i, candidatePoints in enumerate(candidatePointsList):
-        candidatePoints = torch.tensor(candidatePoints).view(1, -1, 3)
-        if (args.cuda): candidatePoints = candidatePoints.cuda()
-        _, srcFeat, tmpFeat = net(srcPoints, candidatePoints)
-        if (args.cuda): srcFeat = srcFeat.cpu()
-        if (args.cuda): tmpFeat = tmpFeat.cpu()
-        srcFeat = srcFeat.detach().numpy().squeeze()
-        tmpFeat = tmpFeat.detach().numpy().squeeze()
-        loss = np.mean(np.abs(srcFeat - tmpFeat))
-        print('%d: %f' %(i, loss))
-        rankList.append([candidatePaths[i], loss])
-    rankList = sorted(rankList, key=itemgetter(1))
-    rankPathList = np.array(rankList)[:,0]
-    inRank5F = 0
-    if (srcPath in rankPathList[:1]):
-        print('Rank 1')
-        inRank5F = 1
-    elif (srcPath in rankPathList[:3]):
-        print('Rank 3')
-        inRank5F = 3
-    elif (srcPath in rankPathList[:5]):
-        print('Rank 5')
-        inRank5F = 5
-    elif (srcPath in rankPathList[:10]):
-        print('Rank 10')
-    elif (srcPath in rankPathList[:20]):
-        print('Rank 20')
-    elif (srcPath in rankPathList[:50]):
-        print('Rank 50')
-    else:
-        print('Out of Rank')
-    print(rankList[0])
-    if (inRank5F > 0):
-        srcPCD = o3d.io.read_triangle_mesh(srcPath)
-        maxBound = srcPCD.get_max_bound()
-        minBound = srcPCD.get_min_bound()
-        length = np.linalg.norm(maxBound - minBound, 2)
-        srcPCD.scale(1 / length, center=srcPCD.get_center())
-        srcPCD.translate(-srcPCD.get_center())
-        srcPCD.paint_uniform_color([1, 0, 0])
-        for path, score in rankList[:inRank5F]:
-            pcd = o3d.io.read_triangle_mesh(path)
-            maxBound = pcd.get_max_bound()
-            minBound = pcd.get_min_bound()
-            length = np.linalg.norm(maxBound - minBound, 2)
-            pcd.scale(1 / length, center=pcd.get_center())
-            pcd.translate(-pcd.get_center())
-            pcd.paint_uniform_color([0, 0, 1])
-            o3d.visualization.draw_geometries([pcd, srcPCD, DrawAxis(1)], window_name = 'Result')
 
 
 def initEnv(args):
@@ -285,10 +228,7 @@ if (__name__ == '__main__'):
         
         boardLog.close()
     else:
-        MODELNET40_DIR = 'D:/Datasets/ModelNet40'
-        VALID_DIR = 'D:/Datasets/ModelNet40_ModelSelector_VALID'
-        # testLoader = GetAllModelFromCategory(DIR_PATH='D:\\Datasets\\ModelNet40', category='chair', numOfPoints=args.inputPoints)
-        testLoader = ModelSelectorValidDataset(VALID_DIR=VALID_DIR)
+        testLoader = ModelSelectorValidDataset(VALID_DIR=args.validDataset, specCatList = args.specCat if (args.specCat != None) else [])
         net.load_state_dict(torch.load(args.modelPath))
-        CalBestTemplate2(net, testLoader, args)
+        CalBestTemplate(net, testLoader, args)
     textLog.close()

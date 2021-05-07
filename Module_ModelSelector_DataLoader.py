@@ -9,7 +9,6 @@ import os
 import csv
 import glob
 import h5py
-import time
 import numpy as np
 import open3d as o3d
 
@@ -76,68 +75,16 @@ class ModelNet40H5(Dataset):
         return pc1.astype('float32'), pc2.astype('float32'), self.label[item]
 
 
-
-#############################################################
-#                   Random Testing Dataset (to be optimize)
-#############################################################
-class GetAllModelFromCategory():
-    def __init__(self, DIR_PATH : str, category : str, numOfPoints : int):
-        assert DIR_PATH and category, 'Must input dataset path and category name'
-        self.filePathList = self.GetModelPathByCategory(DIR_PATH, category)
-        self.points = numOfPoints
-        
-    
-    def GetModelPathByCategory(self, DIR_PATH : str, category : str):
-        SEARCH_DIR = os.path.join(DIR_PATH, category)
-        filePathList = []
-        for dirpath, dirname, filename in os.walk(SEARCH_DIR):
-            for offFile in filename:
-                if '.off' in offFile:
-                    filePathList.append(os.path.join(dirpath, offFile))
-        return filePathList
-    
-    def GetRandomTestSet(self, numOfCandidate, srcRotateF = False):
-        np.random.seed(int(time.clock()))
-        candidatePathList = np.random.permutation(self.filePathList)[:numOfCandidate]
-        srcPath = candidatePathList[0]
-        candidatePathList = np.random.permutation(candidatePathList)
-        
-        rigid = Rigid()
-        rigid.getRandomRigid()
-        
-        srcMesh = o3d.io.read_triangle_mesh(srcPath)
-        maxBound = srcMesh.get_max_bound()
-        minBound = srcMesh.get_min_bound()
-        length = np.linalg.norm(maxBound - minBound, 2)
-        srcMesh = srcMesh.translate(-srcMesh.get_center())
-        srcMesh = srcMesh.scale(1/length, center=srcMesh.get_center())
-        if (srcRotateF) : srcMesh = srcMesh.rotate(rigid.rotation, center=srcMesh.get_center())
-        
-        srcPCD = jitter_pointcloud(np.asarray(srcMesh.sample_points_uniformly(self.points).points)).astype('float32')
-        candidatePCDList = []
-        for path in candidatePathList:
-            tmpMesh = o3d.io.read_triangle_mesh(path)
-            maxBound = tmpMesh.get_max_bound()
-            minBound = tmpMesh.get_min_bound()
-            length = np.linalg.norm(maxBound - minBound, 2)
-            tmpMesh = tmpMesh.translate(-tmpMesh.get_center())
-            tmpMesh = tmpMesh.scale(1/length, center=tmpMesh.get_center())
-            candidatePCDList.append(jitter_pointcloud(np.asarray(tmpMesh.sample_points_uniformly(self.points).points)).astype('float32'))
-        
-        return srcPCD, candidatePCDList, srcPath, candidatePathList
-
-
-
 #############################################################
 #               ModelSelector Validation Dataset
 #############################################################
 class ModelSelectorValidDataset():
-    def __init__(self, VALID_DIR : str):# -> VALID_DIR: Directory path for ModelNet40_ModelSelector_VALID
-        self.srcPCDList, self.srcPathList, self.ansPathList, self.catList, self.catPCDsDict = self.getModelsFromModelSelectorVALIDDataset(VALID_DIR)
+    def __init__(self, VALID_DIR : str, specCatList = []):# -> VALID_DIR: Directory path for ModelNet40_ModelSelector_VALID
+        self.srcPCDList, self.srcPathList, self.ansPathList, self.catList, self.catPCDsDict = self.getModelsFromModelSelectorVALIDDataset(VALID_DIR, specCatList)
         assert (len(self.srcPCDList) == len(self.srcPathList) == len(self.ansPathList) == len(self.catList)), 'Data length error'
         self.size = len(self.srcPCDList)
     
-    def getModelsFromModelSelectorVALIDDataset(self, VALID_DIR : str):
+    def getModelsFromModelSelectorVALIDDataset(self, VALID_DIR : str, specCatList = []):
         srcdir = os.path.join(VALID_DIR, '_src')
         catList = []
         srcPCDList = []# Stored each testing srcPCD
@@ -147,16 +94,19 @@ class ModelSelectorValidDataset():
         with open(os.path.join(srcdir, '_Association.csv'), 'r', encoding = 'utf-8', newline = '') as f:
             csvReader = csv.reader(f)
             for row in csvReader:
+                if (len(specCatList) > 0):
+                    if (not row[0] in specCatList) : continue
                 catList.append(row[0])
                 srcPathList.append(row[1])
                 ansPathList.append(row[2])
-                srcPCDList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(row[1]).points), row[0], row[1]))
+                srcPCDList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(os.path.join(srcdir, row[1])).points), row[0], row[1]))
         catSet = set(catList)
         for cat in catSet:
-            filePathList = WalkModelNet40ByCatName(VALID_DIR, cat, '.pcd')
+            fileNameList = WalkModelNet40ByCatName(VALID_DIR, cat, '.pcd', retFile = 'name')
             modelList = []
-            for file in filePathList:
-                modelList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(file).points), cat, file))
+            for name in fileNameList:
+                filePath = os.path.join(VALID_DIR, cat, name)
+                modelList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(filePath).points), cat, os.path.join(cat, name)))
             catPCDsDict[cat] = modelList
         return srcPCDList, srcPathList, ansPathList, catList, catPCDsDict
     
@@ -194,8 +144,6 @@ if __name__ == '__main__':
     from Module_Parser import ModelSelectorParser
     from torch.utils.data import DataLoader
     args = ModelSelectorParser()
-    loader = GetAllModelFromCategory(DIR_PATH='D:\\Datasets\\ModelNet40', category='chair', numOfPoints=args.inputPoints)
-    print(loader.GetRandomTestSet(3))
     
     trainLoader = DataLoader(ModelNet40H5(dataPartition='train', DIR_PATH=args.dataset, 
                                           srcPointNum=args.inputPoints, 

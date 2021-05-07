@@ -44,4 +44,10 @@ def ModelSelectorParser():
                         default='log_ModelSelector.txt', help='Log file name')
     parser.add_argument('--L1Loss', action='store_true', 
                         default=False, help='Using L1 loss')
+    
+    parser.add_argument('--validDataset', type=str, 
+                        default='D:/Datasets/ModelNet40_ModelSelector_VALID', help='ModelNet40_ModelSelector_VALID dataset path')
+    parser.add_argument('--specCat', type=str, nargs='+', help='Validating on specific categories')
+    
+    
     return parser.parse_args()

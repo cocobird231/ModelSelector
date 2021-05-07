@@ -38,6 +38,7 @@ def FixMeshFileHeader(modelPath : str, backupF : bool = True, showInfo : bool = 
         for c in content:
             f.write(c)
     if (showInfo) : print('New file:', modelPath)
+    return
 
 
 def GenModelSelecotrValidDatasetFromModelNet40(DIR_PATH, SAVE_DIR_PATH, categories = 'all', numOfModelsPerCat = 50, pointSize = 1024):
@@ -83,18 +84,18 @@ def GenSrcPCDFromValidDataset(SAVE_DIR_PATH, numOfModelsPerCat = 10):
     srcdir = os.path.join(SAVE_DIR_PATH, '_src')
     if (not os.path.exists(srcdir)) : os.mkdir(srcdir)
     # Search model in each category
-    catModelPathDict = dict()
+    catModelNameDict = dict()
     for cat in catList:
         np.random.seed(int(time.clock() * 10000))
-        filePathList = WalkModelNet40ByCatName(SAVE_DIR_PATH, cat, '.pcd')
-        filePathList = np.random.permutation(filePathList)[:numOfModelsPerCat]
-        catModelPathDict[cat] = filePathList
+        fileNameList = WalkModelNet40ByCatName(SAVE_DIR_PATH, cat, '.pcd', 'name')
+        fileNameList = np.random.permutation(fileNameList)[:numOfModelsPerCat]
+        catModelNameDict[cat] = fileNameList
     # Operating scaling, jittering and roatation on src PCD
     outputCatDict = dict()# {'cat1' : {'srcPath1' : 'dstPath1',..., 'srcPathN' : 'dstPathN'}}
-    for catKey in catModelPathDict:
+    for catKey in catModelNameDict:
         srcPathAssociationDict = dict()# {'srcPath1' : 'dstPath1',..., 'srcPathN' : 'dstPathN'}
-        for i, pcdPath in enumerate(catModelPathDict[catKey]):
-            pcd = o3d.io.read_point_cloud(pcdPath)
+        for i, pcdName in enumerate(catModelNameDict[catKey]):
+            pcd = o3d.io.read_point_cloud(os.path.join(SAVE_DIR_PATH, catKey, pcdName))
             pcdPts = np.asarray(pcd.points)
             pcdPts = rotate_pointCloud(pcdPts)
             pcdPts = jitter_pointcloud(pcdPts)
@@ -103,9 +104,9 @@ def GenSrcPCDFromValidDataset(SAVE_DIR_PATH, numOfModelsPerCat = 10):
             pcd_new.points = o3d.utility.Vector3dVector(pcdPts)
             # o3d.visualization.draw_geometries([pcd, pcd_new, DrawAxis(1)], window_name = 'Result')
             # print(pcdPts.shape)
-            saveName = os.path.join(srcdir, '%s_%04d.pcd' %(catKey, i))
-            srcPathAssociationDict[saveName] = pcdPath
-            o3d.io.write_point_cloud(saveName, pcd_new)
+            modelName = '%s_%04d.pcd' %(catKey, i)
+            srcPathAssociationDict[modelName] = os.path.join(catKey, pcdName)
+            o3d.io.write_point_cloud(os.path.join(srcdir, modelName), pcd_new)
         outputCatDict[catKey] = srcPathAssociationDict
     with open(os.path.join(srcdir, '_Association.csv'), 'w', encoding = 'utf-8', newline = '') as f:
         csvWriter = csv.writer(f)
@@ -119,6 +120,6 @@ if (__name__ == '__main__'):
     MODELNET40_DIR = 'D:/Datasets/ModelNet40'
     VALID_DIR = 'D:/Datasets/ModelNet40_ModelSelector_VALID'
     sT = time.clock()
-    GenModelSelecotrValidDatasetFromModelNet40(MODELNET40_DIR, VALID_DIR)
+    # GenModelSelecotrValidDatasetFromModelNet40(MODELNET40_DIR, VALID_DIR)
     GenSrcPCDFromValidDataset(VALID_DIR)
     print('Total use', time.clock() - sT, 'sec')
