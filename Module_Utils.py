@@ -54,11 +54,13 @@ def DrawAxis(length = 10):
 def GetZAxisRotateMat(ang : float):# The ang must be an angle value, follow permutation x-y-z
     return R.from_euler('xyz', [0, 0, ang], degrees = True).as_matrix()
 
+
 class Rigid():
-    def __init__(self, rotation = 0, translation = 0, eulerAng = []):
+    def __init__(self, rotation = 0, translation = 0, eulerAng = [], getRandF = False):
         self.rotation = rotation
         self.translation = translation
         self.eulerAng = eulerAng
+        if (getRandF) : self.getRandomRigid()
     
     def getRandomRigid(self, angleRange = 90, translationRange = 0.5):
         anglex = np.random.uniform(-angleRange, angleRange) * DEG2RAD
@@ -77,6 +79,25 @@ class Rigid():
         eulerAng_inv = -self.eulerAng[::-1]
         return Rigid(rotation_inv, translation_inv, eulerAng_inv)
 
+
+def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
+    N, C = pointcloud.shape
+    pointcloud += np.clip(sigma * np.random.randn(N, C), -1 * clip, clip)
+    return pointcloud
+
+
+def scaling_pointCloud(pointcloud, scalingScalar = 0.2):
+    coeff = np.random.uniform(1 - scalingScalar, 1 + scalingScalar)
+    pointcloud = pointcloud * coeff
+    return pointcloud
+
+
+def rotate_pointCloud(pointcloud, rig = Rigid(getRandF=True)):
+    assert type(rig) == type(Rigid()) and pointcloud.shape[1] == 3, 'Input type error: %d' %pointcloud.shape[1]
+    pointcloud = ((rig.rotation @ pointcloud.T).T + rig.translation)
+    return pointcloud
+
+
 class UnitModelUtils:
     def __init__(self, modelPath = '', translation = np.zeros(3), rotation = np.eye(3), scale = 1.0, label = 'None'):
         self.translation = translation
@@ -84,6 +105,34 @@ class UnitModelUtils:
         self.scale = scale
         self.modelPath = modelPath
         self.label = label
+
+
+class ModelUtils:
+    def __init__(self, model, label, path : str):
+        self.model = model
+        self.path = path
+        self.label = label
+    
+    def _getOutputStr(self):
+        def strQuote(item, maxShow : int):
+            if (type(item) == str):
+                return "'%s%s'" %(('...', item[-maxShow + 3:]) if len(item) > maxShow else ('', item[-maxShow:]))
+            item = str(item)
+            return '%s%s' %(('...', item[-maxShow + 3:]) if len(item) > maxShow else ('', item[-maxShow:]))
+        
+        showPathLen = 20
+        showLabelLen = 10
+        return '[ModelUtils] <(shape)%s (label)%s (path)%s>' %(self.model.shape if 'shape' in dir(self.model) else 'None', 
+                                                                  strQuote(self.label, showLabelLen), 
+                                                                  strQuote(self.path, showPathLen))
+
+    
+    def __repr__(self):
+        return self._getOutputStr()
+    
+    def __str__(self):
+        return self._getOutputStr()
+
 
 class textIO:
     def __init__(self, args):
@@ -102,3 +151,22 @@ class textIO:
     def __del__(self):
         self.f.close()
         print('textIO destructor called')
+
+
+
+def WalkModelNet40ByCatName(DIR_PATH : str, CAT_PATH : str, extName : str = '.off'):
+    filePathList = []
+    for dirpath, dirnames, filename in os.walk(os.path.join(DIR_PATH, CAT_PATH)):
+        for modelName in filename:
+            if (modelName[-len(extName):] == extName):
+                filePathList.append(os.path.join(dirpath, modelName))
+    return filePathList
+
+
+def WalkModelNet40CatDIR(DIR_PATH : str):
+    catList = []
+    for dirpath, dirnames, filename in os.walk(DIR_PATH):
+        for catdir in dirnames:
+            catList.append(catdir)
+        break
+    return catList

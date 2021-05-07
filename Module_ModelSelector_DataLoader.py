@@ -6,6 +6,7 @@ Created on Mon May  3 20:19:15 2021
 """
 
 import os
+import csv
 import glob
 import h5py
 import time
@@ -14,22 +15,12 @@ import open3d as o3d
 
 from torch.utils.data import Dataset
 
-from Module_Utils import Rigid
-
-DEG2RAD = 3.1415926 / 180.0
-
-def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
-    N, C = pointcloud.shape
-    pointcloud += np.clip(sigma * np.random.randn(N, C), -1 * clip, clip)
-    return pointcloud
+from Module_Utils import Rigid, jitter_pointcloud, scaling_pointCloud, WalkModelNet40ByCatName, ModelUtils
 
 
-def scaling_pointCloud(pointcloud, scalingScalar = 0.2):
-    coeff = np.random.uniform(1 - scalingScalar, 1 + scalingScalar)
-    pointcloud = pointcloud * coeff
-    return pointcloud
-
-
+#############################################################
+#                       Training Dataset
+#############################################################
 class ModelNet40H5(Dataset):
     def __init__(self, DIR_PATH : str, dataPartition = 'None', 
                  tmpPointNum = 1024, srcPointNum = 1024, 
@@ -85,6 +76,10 @@ class ModelNet40H5(Dataset):
         return pc1.astype('float32'), pc2.astype('float32'), self.label[item]
 
 
+
+#############################################################
+#                   Random Testing Dataset (to be optimize)
+#############################################################
 class GetAllModelFromCategory():
     def __init__(self, DIR_PATH : str, category : str, numOfPoints : int):
         assert DIR_PATH and category, 'Must input dataset path and category name'
@@ -133,7 +128,69 @@ class GetAllModelFromCategory():
 
 
 
+#############################################################
+#               ModelSelector Validation Dataset
+#############################################################
+class ModelSelectorValidDataset():
+    def __init__(self, VALID_DIR : str):# -> VALID_DIR: Directory path for ModelNet40_ModelSelector_VALID
+        self.srcPCDList, self.srcPathList, self.ansPathList, self.catList, self.catPCDsDict = self.getModelsFromModelSelectorVALIDDataset(VALID_DIR)
+        assert (len(self.srcPCDList) == len(self.srcPathList) == len(self.ansPathList) == len(self.catList)), 'Data length error'
+        self.size = len(self.srcPCDList)
+    
+    def getModelsFromModelSelectorVALIDDataset(self, VALID_DIR : str):
+        srcdir = os.path.join(VALID_DIR, '_src')
+        catList = []
+        srcPCDList = []# Stored each testing srcPCD
+        catPCDsDict = dict()# Each category's PCD: {'cat' : [ModelUtils(PCD, cat, path),...,ModelUtils(PCD, cat, path)]}
+        srcPathList = []# Path for srcPCD in /_src directory
+        ansPathList = []# Path for srcPCD in /'cat' directory
+        with open(os.path.join(srcdir, '_Association.csv'), 'r', encoding = 'utf-8', newline = '') as f:
+            csvReader = csv.reader(f)
+            for row in csvReader:
+                catList.append(row[0])
+                srcPathList.append(row[1])
+                ansPathList.append(row[2])
+                srcPCDList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(row[1]).points), row[0], row[1]))
+        catSet = set(catList)
+        for cat in catSet:
+            filePathList = WalkModelNet40ByCatName(VALID_DIR, cat, '.pcd')
+            modelList = []
+            for file in filePathList:
+                modelList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(file).points), cat, file))
+            catPCDsDict[cat] = modelList
+        return srcPCDList, srcPathList, ansPathList, catList, catPCDsDict
+    
+    def getModelListByCat(self, category : str):
+        return self.catPCDsDict[category]
+    
+    def getAllCatModelDict(self):
+        return self.catPCDsDict
+    
+    def __iter__(self):
+        self.cnt = 0
+        return self
+    
+    def __next__(self):
+        if (self.cnt < self.size):
+            _temp = self.cnt
+            self.cnt += 1
+            return self.srcPCDList[_temp], self.getModelListByCat(self.srcPCDList[_temp].label), self.ansPathList[_temp]
+        else:
+            raise StopIteration
+
+
 if __name__ == '__main__':
+
+    import sys
+    loader = ModelSelectorValidDataset('D:/Datasets/ModelNet40_ModelSelector_VALID')
+    cnt = 1
+    for srcModelU, catModelUList, pathAns in loader:
+        print(srcModelU)
+        print(catModelUList)
+        print(pathAns)
+        cnt += 1
+        if (cnt > 5) : break
+    sys.exit(0)
     from Module_Parser import ModelSelectorParser
     from torch.utils.data import DataLoader
     args = ModelSelectorParser()

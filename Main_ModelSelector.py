@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
 from Module_ModelSelector import PointNetCls, PointNet2
-from Module_ModelSelector_DataLoader import ModelNet40H5, GetAllModelFromCategory
+from Module_ModelSelector_DataLoader import ModelNet40H5, GetAllModelFromCategory, ModelSelectorValidDataset
 
 from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO, DrawAxis
@@ -120,6 +120,50 @@ def SaveModel(net, DIR_PATH, modelName, multiCudaF):
         torch.save(net.module.state_dict(), os.path.join(DIR_PATH, modelName))
     else:
         torch.save(net.state_dict(), os.path.join(DIR_PATH, modelName))
+
+
+def CalBestTemplate2(net, testLoader, args):
+    net.eval()
+    totalRankDict = {'Rank 1' : 0, 'Rank 3' : 0, 'Rank 5' : 0, 
+                     'Rank 10' : 0, 'Rank 20' : 0, 'Rank 50' : 0, 'Out of Rank' : 0}
+    for srcModelU, catModelUList, pathAns in testLoader:
+        srcPCD = srcModelU.model
+        srcPts = torch.tensor(srcPCD).view(1, -1, 3)
+        if (args.cuda) : srcPts = srcPts.cuda()
+        rankList = []
+        for catModelU in catModelUList:
+            catPCD = catModelU.model
+            catPts = torch.tensor(catPCD).view(1, -1, 3)
+            if (args.cuda) : catPts = catPts.cuda()
+            _, srcFeat, tmpFeat = net(srcPts, catPts)
+            if (args.cuda): srcFeat = srcFeat.cpu()
+            if (args.cuda): tmpFeat = tmpFeat.cpu()
+            srcFeat = srcFeat.detach().numpy().squeeze()
+            tmpFeat = tmpFeat.detach().numpy().squeeze()
+            loss = np.mean(np.abs(srcFeat - tmpFeat))
+            print('%s %s: %f' %(srcModelU.path[-20:], catModelU.path[-20:], loss))
+            rankList.append([catModelU.path, loss])
+        rankList = sorted(rankList, key=itemgetter(1))
+        rankPathList = np.array(rankList)[:,0]
+        rank = ''
+        if (pathAns in rankPathList[:1]):
+            rank = 'Rank 1'
+        elif (pathAns in rankPathList[:3]):
+            rank = 'Rank 3'
+        elif (pathAns in rankPathList[:5]):
+            rank = 'Rank 5'
+        elif (pathAns in rankPathList[:10]):
+            rank = 'Rank 10'
+        elif (pathAns in rankPathList[:20]):
+            rank = 'Rank 20'
+        elif (pathAns in rankPathList[:50]):
+            rank = 'Rank 50'
+        else:
+            rank = 'Out of Rank'
+        print(rank)
+        totalRankDict[rank] += 1
+    print(totalRankDict)
+    return
 
 
 def CalBestTemplate(net, testLoader, args):
@@ -241,7 +285,10 @@ if (__name__ == '__main__'):
         
         boardLog.close()
     else:
-        testLoader = GetAllModelFromCategory(DIR_PATH='D:\\Datasets\\ModelNet40', category='chair', numOfPoints=args.inputPoints)
+        MODELNET40_DIR = 'D:/Datasets/ModelNet40'
+        VALID_DIR = 'D:/Datasets/ModelNet40_ModelSelector_VALID'
+        # testLoader = GetAllModelFromCategory(DIR_PATH='D:\\Datasets\\ModelNet40', category='chair', numOfPoints=args.inputPoints)
+        testLoader = ModelSelectorValidDataset(VALID_DIR=VALID_DIR)
         net.load_state_dict(torch.load(args.modelPath))
-        CalBestTemplate(net, testLoader, args)
+        CalBestTemplate2(net, testLoader, args)
     textLog.close()
