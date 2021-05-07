@@ -120,6 +120,6 @@ if (__name__ == '__main__'):
     MODELNET40_DIR = 'D:/Datasets/ModelNet40'
     VALID_DIR = 'D:/Datasets/ModelNet40_ModelSelector_VALID'
     sT = time.clock()
-    # GenModelSelecotrValidDatasetFromModelNet40(MODELNET40_DIR, VALID_DIR)
+    GenModelSelecotrValidDatasetFromModelNet40(MODELNET40_DIR, VALID_DIR)
     GenSrcPCDFromValidDataset(VALID_DIR)
     print('Total use', time.clock() - sT, 'sec')

@@ -8,7 +8,6 @@ Created on Mon May  3 17:58:33 2021
 import os
 import time
 import numpy as np
-import open3d as o3d
 from tqdm import tqdm
 from operator import itemgetter
 
@@ -21,60 +20,69 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
 from Module_ModelSelector import PointNetCls, PointNet2
-from Module_ModelSelector_DataLoader import ModelNet40H5, GetAllModelFromCategory, ModelSelectorValidDataset
+from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidDataset
 
 from Module_Parser import ModelSelectorParser
-from Module_Utils import textIO, DrawAxis
+from Module_Utils import textIO
 
 
 def eval_one_epoch(net, testLoader, args):
     net.eval()
     avgClsLoss = 0
     avgL1Loss = 0
+    avgTripletLoss = 0
     avgLoss = 0
     cnt = 0
-    for srcPC, tmpPC, label in tqdm(testLoader):
+    for srcPC, tmpPC, negPC, label in tqdm(testLoader):
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
+            negPC = negPC.cuda()
             label = label.cuda()
-        clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+        clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
         clsLoss = F.nll_loss(clsProbVec, label.squeeze())
-        l1Loss = F.l1_loss(globalFeat, globalFeat2)
-        loss = clsLoss + l1Loss
+        l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
+        tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
+        loss = clsLoss + l1Loss + tripletLoss
         avgClsLoss += clsLoss.item()
-        avgL1Loss += l1Loss.item()
+        avgL1Loss += l1Loss.item() if (args.L1Loss) else 0
+        avgTripletLoss += tripletLoss.item() if (args.triplet) else 0
         avgLoss += loss.item()
         cnt += 1
-    return avgLoss / cnt, avgClsLoss / cnt, avgL1Loss / cnt
+    return avgLoss / cnt, avgClsLoss / cnt, avgL1Loss / cnt, avgTripletLoss / cnt
 
 
 def train_one_epoch(net, opt, trainLoader, args):
     net.train()
     avgClsLoss = 0
     avgL1Loss = 0
+    avgTripletLoss = 0
     avgLoss = 0
     cnt = 0
-    for srcPC, tmpPC, label in tqdm(trainLoader):
+    for srcPC, tmpPC, negPC, label in tqdm(trainLoader):
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
+            negPC = negPC.cuda()
             label = label.cuda()
+            
         opt.zero_grad()
         
-        clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+        clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
         clsLoss = F.nll_loss(clsProbVec, label.squeeze())
         l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
-        loss = clsLoss + l1Loss
+        tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
+        loss = clsLoss + l1Loss + tripletLoss
         loss.backward()
         
         opt.step()
         
         avgClsLoss += clsLoss.item()
         avgL1Loss += l1Loss.item() if (args.L1Loss) else 0
+        avgTripletLoss += tripletLoss.item() if (args.triplet) else 0
         avgLoss += loss.item()
         cnt += 1
-    return avgLoss / cnt, avgClsLoss / cnt, avgL1Loss / cnt
+    return avgLoss / cnt, avgClsLoss / cnt, avgL1Loss / cnt, avgTripletLoss / cnt
 
 
 def train(net, trainLoader, validLoader, textLog, boardLog, args):
@@ -86,7 +94,7 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
     bestValidLoss = 0
     bestValidEpoch = 0
     for epoch in range(args.epochs):
-        loss, clsLoss, l1Loss = train_one_epoch(net, opt, trainLoader, args)
+        loss, clsLoss, l1Loss, tripletLoss = train_one_epoch(net, opt, trainLoader, args)
         scheduler.step()
         
         if (epoch == 0):
@@ -100,9 +108,10 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
         boardLog.add_scalar('train/best_loss', bestTrainLoss, epoch)
         boardLog.add_scalar('train/clsLoss', clsLoss, epoch)
         boardLog.add_scalar('train/l1Loss', l1Loss, epoch)
+        boardLog.add_scalar('train/tripletLoss', tripletLoss, epoch)
         if (epoch % 10 == 0):
             SaveModel(net, args.saveModelDir, 'model_ModelSelector_%d.pth' %epoch, args.multiCuda)
-            loss, clsLoss, l1Loss = eval_one_epoch(net, validLoader, args)
+            loss, clsLoss, l1Loss, tripletLoss = eval_one_epoch(net, validLoader, args)
             if (epoch == 0):
                 bestValidLoss = loss
             elif (bestValidLoss > loss):
@@ -113,6 +122,7 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
             boardLog.add_scalar('valid/best_loss', bestValidLoss, epoch)
             boardLog.add_scalar('valid/clsLoss', clsLoss, epoch)
             boardLog.add_scalar('valid/l1Loss', l1Loss, epoch)
+            boardLog.add_scalar('valid/tripletLoss', tripletLoss, epoch)
     return
 
 
@@ -214,15 +224,17 @@ if (__name__ == '__main__'):
                                              srcPointNum=args.inputPoints, 
                                              tmpPointNum=args.inputPoints, 
                                              gaussianNoise=args.gaussianNoise, 
-                                             scaling=args.scaling), 
-                                batch_size=args.batchSize, shuffle=True)
+                                             scaling=args.scaling, 
+                                             triplet=args.triplet), 
+                                 batch_size=args.batchSize, shuffle=True)
         
         trainLoader = DataLoader(ModelNet40H5(dataPartition='train', DIR_PATH=args.dataset, 
                                               srcPointNum=args.inputPoints, 
                                               tmpPointNum=args.inputPoints, 
                                               gaussianNoise=args.gaussianNoise, 
-                                              scaling=args.scaling), 
-                                batch_size=args.batchSize, shuffle=True)
+                                              scaling=args.scaling, 
+                                              triplet=args.triplet), 
+                                 batch_size=args.batchSize, shuffle=True)
         
         train(net, trainLoader, validLoader, textLog, boardLog, args)
         
