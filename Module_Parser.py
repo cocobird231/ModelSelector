@@ -18,7 +18,7 @@ def ModelSelectorParser():
     parser.add_argument('-m', '--modelPath',    required=False, type=str, metavar='PATH', 
                         default='models/model_ModelSelector_best_pointnet_scaling_noL1.pth', help='Pre-trained model path for ModelSelector')# Windows test
     parser.add_argument('-f', '--featModel',    required=False, type=str, metavar='N', 
-                        default='pointnet2', choices=['pointnet', 'pointnet2'], help='Feature extractor')# Windows test
+                        default='pointnet', choices=['pointnet', 'pointnet2'], help='Feature extractor')# Windows test
     
     parser.add_argument('--eval', action='store_true', 
                         default=False, help='Run evaluation mode')# Windows test
@@ -44,11 +44,16 @@ def ModelSelectorParser():
                         default='log_ModelSelector.txt', help='Log file name')
     parser.add_argument('--L1Loss', action='store_true', 
                         default=False, help='Using L1 loss')
+    parser.add_argument('--L2Loss', action='store_true', 
+                        default=False, help='Using L2 loss')
     parser.add_argument('--triplet', action='store_true', 
-                        default=True, help='Using triplet loss')
+                        default=False, help='Using triplet loss')
+    parser.add_argument('--tripletL2', action='store_true', 
+                        default=False, help='Using MSE triplet loss')
+    parser.add_argument('--tripletMg', type=int, 
+                        default=None, help='Using MSE triplet loss with given margin')
     parser.add_argument('--validDataset', type=str, 
                         default='D:/Datasets/ModelNet40_ModelSelector_VALID', help='ModelNet40_ModelSelector_VALID dataset path')
     parser.add_argument('--specCat', type=str, nargs='+', help='Validating on specific categories')
-    
     
     return parser.parse_args()

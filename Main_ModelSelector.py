@@ -13,13 +13,13 @@ from operator import itemgetter
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
 from Module_ModelSelector import PointNetCls, PointNet2
+from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
 from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidDataset
 
 from Module_Parser import ModelSelectorParser
@@ -28,9 +28,7 @@ from Module_Utils import textIO
 
 def eval_one_epoch(net, testLoader, args):
     net.eval()
-    avgClsLoss = 0
-    avgL1Loss = 0
-    avgTripletLoss = 0
+    avgLossDict = GetModelSelectorCriterionLossDict(args)
     avgLoss = 0
     cnt = 0
     for srcPC, tmpPC, negPC, label in tqdm(testLoader):
@@ -40,23 +38,24 @@ def eval_one_epoch(net, testLoader, args):
             negPC = negPC.cuda()
             label = label.cuda()
         clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
-        clsLoss = F.nll_loss(clsProbVec, label.squeeze())
-        l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
-        tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
-        loss = clsLoss + l1Loss + tripletLoss
-        avgClsLoss += clsLoss.item()
-        avgL1Loss += l1Loss.item() if (args.L1Loss) else 0
-        avgTripletLoss += tripletLoss.item() if (args.triplet) else 0
+        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
+        # clsLoss = F.nll_loss(clsProbVec, label.squeeze())
+        # l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
+        # tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
+        # loss = clsLoss + l1Loss + tripletLoss
+        # avgClsLoss += clsLoss.item()
+        # avgL1Loss += l1Loss.item() if (args.L1Loss) else 0
+        # avgTripletLoss += tripletLoss.item() if (args.triplet) else 0
+        for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
         cnt += 1
-    return avgLoss / cnt, avgClsLoss / cnt, avgL1Loss / cnt, avgTripletLoss / cnt
+    for key in avgLossDict : avgLossDict[key] /= cnt
+    return avgLoss / cnt, avgLossDict
 
 
 def train_one_epoch(net, opt, trainLoader, args):
     net.train()
-    avgClsLoss = 0
-    avgL1Loss = 0
-    avgTripletLoss = 0
+    avgLossDict = GetModelSelectorCriterionLossDict(args)
     avgLoss = 0
     cnt = 0
     for srcPC, tmpPC, negPC, label in tqdm(trainLoader):
@@ -69,20 +68,20 @@ def train_one_epoch(net, opt, trainLoader, args):
         opt.zero_grad()
         
         clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
-        clsLoss = F.nll_loss(clsProbVec, label.squeeze())
-        l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
-        tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
-        loss = clsLoss + l1Loss + tripletLoss
+        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
+        # clsLoss = F.nll_loss(clsProbVec, label.squeeze())
+        # l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
+        # tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
+        # loss = clsLoss + l1Loss + tripletLoss
         loss.backward()
         
         opt.step()
         
-        avgClsLoss += clsLoss.item()
-        avgL1Loss += l1Loss.item() if (args.L1Loss) else 0
-        avgTripletLoss += tripletLoss.item() if (args.triplet) else 0
+        for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
         cnt += 1
-    return avgLoss / cnt, avgClsLoss / cnt, avgL1Loss / cnt, avgTripletLoss / cnt
+    for key in avgLossDict : avgLossDict[key] /= cnt
+    return avgLoss / cnt, avgLossDict
 
 
 def train(net, trainLoader, validLoader, textLog, boardLog, args):
@@ -94,7 +93,7 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
     bestValidLoss = 0
     bestValidEpoch = 0
     for epoch in range(args.epochs):
-        loss, clsLoss, l1Loss, tripletLoss = train_one_epoch(net, opt, trainLoader, args)
+        loss, lossDict = train_one_epoch(net, opt, trainLoader, args)
         scheduler.step()
         
         if (epoch == 0):
@@ -106,12 +105,13 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
         textLog.writeLog('train\tepoch %d\tloss:%f\tbest epoch %d\tloss:%f'%(epoch, loss, bestTrainEpoch, bestTrainLoss))
         boardLog.add_scalar('train/loss', loss, epoch)
         boardLog.add_scalar('train/best_loss', bestTrainLoss, epoch)
-        boardLog.add_scalar('train/clsLoss', clsLoss, epoch)
-        boardLog.add_scalar('train/l1Loss', l1Loss, epoch)
-        boardLog.add_scalar('train/tripletLoss', tripletLoss, epoch)
+        for key in lossDict : boardLog.add_scalar('train/%s' %key, lossDict[key], epoch)
+        # boardLog.add_scalar('train/clsLoss', clsLoss, epoch)
+        # boardLog.add_scalar('train/l1Loss', l1Loss, epoch)
+        # boardLog.add_scalar('train/tripletLoss', tripletLoss, epoch)
         if (epoch % 10 == 0):
             SaveModel(net, args.saveModelDir, 'model_ModelSelector_%d.pth' %epoch, args.multiCuda)
-            loss, clsLoss, l1Loss, tripletLoss = eval_one_epoch(net, validLoader, args)
+            loss, lossDict = eval_one_epoch(net, validLoader, args)
             if (epoch == 0):
                 bestValidLoss = loss
             elif (bestValidLoss > loss):
@@ -120,9 +120,10 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
             textLog.writeLog('valid\tepoch %d\tloss:%f\tbest epoch %d\tloss:%f'%(epoch, loss, bestValidEpoch, bestValidLoss))
             boardLog.add_scalar('valid/loss', loss, epoch)
             boardLog.add_scalar('valid/best_loss', bestValidLoss, epoch)
-            boardLog.add_scalar('valid/clsLoss', clsLoss, epoch)
-            boardLog.add_scalar('valid/l1Loss', l1Loss, epoch)
-            boardLog.add_scalar('valid/tripletLoss', tripletLoss, epoch)
+            for key in lossDict : boardLog.add_scalar('valid/%s' %key, lossDict[key], epoch)
+            # boardLog.add_scalar('valid/clsLoss', clsLoss, epoch)
+            # boardLog.add_scalar('valid/l1Loss', l1Loss, epoch)
+            # boardLog.add_scalar('valid/tripletLoss', tripletLoss, epoch)
     return
 
 
