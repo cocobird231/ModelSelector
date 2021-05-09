@@ -105,7 +105,7 @@ def GenSrcPCDFromValidDataset(SAVE_DIR_PATH, numOfModelsPerCat = 10):
             # o3d.visualization.draw_geometries([pcd, pcd_new, DrawAxis(1)], window_name = 'Result')
             # print(pcdPts.shape)
             modelName = '%s_%04d.pcd' %(catKey, i)
-            srcPathAssociationDict[modelName] = os.path.join(catKey, pcdName)
+            srcPathAssociationDict[modelName] = pcdName
             o3d.io.write_point_cloud(os.path.join(srcdir, modelName), pcd_new)
         outputCatDict[catKey] = srcPathAssociationDict
     with open(os.path.join(srcdir, '_Association.csv'), 'w', encoding = 'utf-8', newline = '') as f:

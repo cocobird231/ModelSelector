@@ -147,7 +147,7 @@ def CalBestTemplate(net, testLoader, args):
             catPCD = catModelU.model.astype('float32')
             catPts = torch.tensor(catPCD).view(1, -1, 3)
             if (args.cuda) : catPts = catPts.cuda()
-            _, srcFeat, tmpFeat = net(srcPts, catPts)
+            _, srcFeat, tmpFeat, _ = net(srcPts, catPts, srcPts)
             if (args.cuda): srcFeat = srcFeat.cpu()
             if (args.cuda): tmpFeat = tmpFeat.cpu()
             srcFeat = srcFeat.detach().numpy().squeeze()
@@ -182,10 +182,12 @@ def initEnv(args):
     try:
         if (not os.path.exists(args.saveModelDir)):
             os.mkdir(args.saveModelDir)
-        if (not os.path.exists(args.dataset)):
+        if (not args.eval and not os.path.exists(args.dataset)):
             raise 'Dataset path error'
         if (args.eval and not os.path.exists(args.modelPath)):
             raise 'Model path error'
+        if (args.eval and not os.path.exists(args.validDataset)):
+            raise 'validDataset path error'
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
         return textLog
@@ -241,6 +243,6 @@ if (__name__ == '__main__'):
         boardLog.close()
     else:
         testLoader = ModelSelectorValidDataset(VALID_DIR=args.validDataset, specCatList = args.specCat if (args.specCat != None) else [])
-        net.load_state_dict(torch.load(args.modelPath))
+        net.load_state_dict(torch.load(args.modelPath, map_location=device))
         CalBestTemplate(net, testLoader, args)
     textLog.close()

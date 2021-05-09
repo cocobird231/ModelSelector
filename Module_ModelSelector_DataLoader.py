@@ -182,7 +182,7 @@ class ModelSelectorValidDataset():
             modelList = []
             for name in fileNameList:
                 filePath = os.path.join(VALID_DIR, cat, name)
-                modelList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(filePath).points), cat, os.path.join(cat, name)))
+                modelList.append(ModelUtils(np.asarray(o3d.io.read_point_cloud(filePath).points), cat, name))
             catPCDsDict[cat] = modelList
         return srcPCDList, srcPathList, ansPathList, catList, catPCDsDict
     
