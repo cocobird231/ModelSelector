@@ -86,7 +86,8 @@ def train_one_epoch(net, opt, trainLoader, args):
 
 def train(net, trainLoader, validLoader, textLog, boardLog, args):
     opt = optim.Adam(net.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = MultiStepLR(opt, milestones=[75, 150, 200], gamma=0.1)
+    # scheduler = MultiStepLR(opt, milestones=[75, 150, 200], gamma=0.1)
+    scheduler = MultiStepLR(opt, milestones=[150, 200, 250], gamma=0.1)
     
     bestTrainLoss = 0
     bestTrainEpoch = 0
