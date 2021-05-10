@@ -20,61 +20,6 @@ from Module_Utils import Rigid, jitter_pointcloud, scaling_pointCloud, rotate_po
 #############################################################
 #                       Training Dataset
 #############################################################
-'''class ModelNet40H5(Dataset):
-    def __init__(self, DIR_PATH : str, dataPartition = 'None', 
-                 tmpPointNum = 1024, srcPointNum = 1024, 
-                 gaussianNoise = True, randView = False, scaling = False, 
-                 angleRange = 90, translationRange = 0.5, scalingRange = 0.2):
-        
-        self.data, self.label = self.load_data(DIR_PATH, dataPartition)
-        self.tmpPointNum = tmpPointNum
-        self.srcPointNum = srcPointNum
-        self.gaussianNoise = gaussianNoise
-        self.randView = randView
-        self.scaling = scaling
-        self.angleRange = angleRange
-        self.translationRange = translationRange
-        self.scalingRange = scalingRange
-                
-    def load_data(self, DIR_PATH, dataPartition):
-        all_data = []
-        all_label = []
-        dataNamePattern = '/ply_data*.h5'
-        if (dataPartition != 'None'):
-            dataNamePattern = ('/ply_data_%s*.h5' %dataPartition)
-        print(dataNamePattern)
-        for h5_name in glob.glob(DIR_PATH + dataNamePattern):
-            f = h5py.File(h5_name)
-            data = f['data'][:].astype('float32')
-            label = f['label'][:].astype('int64')
-            f.close()
-            all_data.append(data)
-            all_label.append(label)
-        all_data = np.concatenate(all_data, axis=0)
-        all_label = np.concatenate(all_label, axis=0)
-        return all_data, all_label
-
-    def __len__(self):
-        return self.data.shape[0]
-    
-    def __getitem__(self, item):
-        rigidAB = Rigid()
-        rigidAB.getRandomRigid(self.angleRange, self.translationRange)
-        
-        pc = self.data[item]
-        pc1 = np.random.permutation(pc)[:self.tmpPointNum]
-        pc2 = np.random.permutation(pc)[:self.srcPointNum]
-        pc2 = ((rigidAB.rotation @ pc2.T).T + rigidAB.translation)
-        if (self.gaussianNoise):
-            pc1 = jitter_pointcloud(pc1)
-            pc2 = jitter_pointcloud(pc2)
-        if (self.scaling):
-            pc1 = scaling_pointCloud(pc1)
-            pc2 = scaling_pointCloud(pc2)
-        # Output pc1, pc2: N x 3
-        return pc1.astype('float32'), pc2.astype('float32'), self.label[item]'''
-
-
 class ModelNet40H5(Dataset):
     def __init__(self, DIR_PATH : str, dataPartition = 'None', 
                  tmpPointNum = 1024, srcPointNum = 1024, 

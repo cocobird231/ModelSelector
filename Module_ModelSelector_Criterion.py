@@ -5,6 +5,7 @@ Created on Mon May 10 02:30:40 2021
 @author: cocob
 """
 
+import torch
 import torch.nn.functional as F
 
 def ModelSelectorCriterion(srcFeat, tmpFeat, negFeat, clsProbVec, label, args):
@@ -16,7 +17,7 @@ def ModelSelectorCriterion(srcFeat, tmpFeat, negFeat, clsProbVec, label, args):
     if (args.triplet) : lossDict['triplet'] = F.l1_loss(srcFeat, tmpFeat) + 1 / (F.l1_loss(srcFeat, negFeat))
     if (args.tripletL2) : lossDict['tripletL2'] = F.mse_loss(srcFeat, tmpFeat) + 1 / (F.mse_loss(srcFeat, negFeat))
     if (args.tripletMg) : lossDict['tripletMg'] = F.mse_loss(srcFeat, tmpFeat) - F.mse_loss(srcFeat, negFeat) + args.tripletMg \
-        if F.mse_loss(srcFeat, tmpFeat) > F.mse_loss(srcFeat, negFeat) - args.tripletMg else 0
+        if F.mse_loss(srcFeat, tmpFeat) > F.mse_loss(srcFeat, negFeat) - args.tripletMg else torch.tensor(0).to(srcFeat)
     loss = 0
     for key in lossDict:
         loss += lossDict[key]

@@ -39,13 +39,6 @@ def eval_one_epoch(net, testLoader, args):
             label = label.cuda()
         clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
         loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
-        # clsLoss = F.nll_loss(clsProbVec, label.squeeze())
-        # l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
-        # tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
-        # loss = clsLoss + l1Loss + tripletLoss
-        # avgClsLoss += clsLoss.item()
-        # avgL1Loss += l1Loss.item() if (args.L1Loss) else 0
-        # avgTripletLoss += tripletLoss.item() if (args.triplet) else 0
         for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
         cnt += 1
@@ -69,10 +62,6 @@ def train_one_epoch(net, opt, trainLoader, args):
         
         clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
         loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
-        # clsLoss = F.nll_loss(clsProbVec, label.squeeze())
-        # l1Loss = F.l1_loss(globalFeat, globalFeat2) if (args.L1Loss) else 0
-        # tripletLoss = F.l1_loss(globalFeat, globalFeat2) + 1 / (F.l1_loss(globalFeat, globalFeatNeg)) if (args.triplet) else 0
-        # loss = clsLoss + l1Loss + tripletLoss
         loss.backward()
         
         opt.step()
@@ -86,8 +75,8 @@ def train_one_epoch(net, opt, trainLoader, args):
 
 def train(net, trainLoader, validLoader, textLog, boardLog, args):
     opt = optim.Adam(net.parameters(), lr=0.001, weight_decay=1e-4)
-    # scheduler = MultiStepLR(opt, milestones=[75, 150, 200], gamma=0.1)
-    scheduler = MultiStepLR(opt, milestones=[150, 200, 250], gamma=0.1)
+    scheduler = MultiStepLR(opt, milestones=[75, 150, 200], gamma=0.1)
+    # scheduler = MultiStepLR(opt, milestones=[100, 150, 200], gamma=0.1)
     
     bestTrainLoss = 0
     bestTrainEpoch = 0
@@ -107,9 +96,6 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
         boardLog.add_scalar('train/loss', loss, epoch)
         boardLog.add_scalar('train/best_loss', bestTrainLoss, epoch)
         for key in lossDict : boardLog.add_scalar('train/%s' %key, lossDict[key], epoch)
-        # boardLog.add_scalar('train/clsLoss', clsLoss, epoch)
-        # boardLog.add_scalar('train/l1Loss', l1Loss, epoch)
-        # boardLog.add_scalar('train/tripletLoss', tripletLoss, epoch)
         if (epoch % 10 == 0):
             SaveModel(net, args.saveModelDir, 'model_ModelSelector_%d.pth' %epoch, args.multiCuda)
             loss, lossDict = eval_one_epoch(net, validLoader, args)
@@ -122,9 +108,6 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
             boardLog.add_scalar('valid/loss', loss, epoch)
             boardLog.add_scalar('valid/best_loss', bestValidLoss, epoch)
             for key in lossDict : boardLog.add_scalar('valid/%s' %key, lossDict[key], epoch)
-            # boardLog.add_scalar('valid/clsLoss', clsLoss, epoch)
-            # boardLog.add_scalar('valid/l1Loss', l1Loss, epoch)
-            # boardLog.add_scalar('valid/tripletLoss', tripletLoss, epoch)
     return
 
 
@@ -174,7 +157,7 @@ def CalBestTemplate(net, testLoader, args):
             rank = 'Rank 30'
         else:
             rank = 'Out of Rank'
-        print(srcModelU.path, rank)
+        # print(srcModelU.path, rank)
         totalRankDict[rank] += 1
     print(totalRankDict)
     return
@@ -184,6 +167,8 @@ def initEnv(args):
     try:
         if (not os.path.exists(args.saveModelDir)):
             os.mkdir(args.saveModelDir)
+        if (not os.path.exists(args.saveLogDir)):
+            os.mkdir(args.saveLogDir)
         if (not args.eval and not os.path.exists(args.dataset)):
             raise 'Dataset path error'
         if (args.eval and not os.path.exists(args.modelPath)):
@@ -229,7 +214,7 @@ if (__name__ == '__main__'):
                                              tmpPointNum=args.inputPoints, 
                                              gaussianNoise=args.gaussianNoise, 
                                              scaling=args.scaling, 
-                                             triplet=args.triplet), 
+                                             triplet=args.triplet or args.tripletL2 or args.tripletMg), 
                                  batch_size=args.batchSize, shuffle=True)
         
         trainLoader = DataLoader(ModelNet40H5(dataPartition='train', DIR_PATH=args.dataset, 
@@ -237,7 +222,7 @@ if (__name__ == '__main__'):
                                               tmpPointNum=args.inputPoints, 
                                               gaussianNoise=args.gaussianNoise, 
                                               scaling=args.scaling, 
-                                              triplet=args.triplet), 
+                                              triplet=args.triplet or args.tripletL2 or args.tripletMg), 
                                  batch_size=args.batchSize, shuffle=True)
         
         train(net, trainLoader, validLoader, textLog, boardLog, args)

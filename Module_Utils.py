@@ -77,7 +77,7 @@ class ModelUtils:
 
 class textIO:
     def __init__(self, args):
-        self.f = open(os.path.join(args.saveModelDir, args.logName), 'a')
+        self.f = open(os.path.join(args.saveLogDir, args.logName), 'a')
     
     def writeLog(self, string, printF = True):
         print(string)
