@@ -20,11 +20,13 @@ def ModelSelectorParser():
                         default='models/model_ModelSelector_best_pointnet_scaling_noL1.pth', help='Pre-trained model path for ModelSelector')# Windows test
     parser.add_argument('-f', '--featModel',    required=False, type=str, metavar='N', 
                         default='pointnet', choices=['pointnet', 'pointnet2'], help='Feature extractor')# Windows test
-    
+    # Training arguments
     parser.add_argument('--eval', action='store_true', 
                         default=False, help='Run evaluation mode')# Windows test
     parser.add_argument('--startEpoch', type=int, 
                         default=0, help='Start epoch')
+    parser.add_argument('--multiLR', type=int, nargs='+', 
+                        help='Validating on specific categories')
     # Device settings
     parser.add_argument('--cuda', action='store_true', 
                         default=False, help='Training via cuda device, ignore while cuda device not found')# Windows test
@@ -34,7 +36,7 @@ def ModelSelectorParser():
                         default=False, help='Using multiple cuda device, ignore while --cuda flag is false')
     # Training settings
     parser.add_argument('--inputPoints', type=int, 
-                        default=1024, help='Input points')
+                        default=2048, help='Input points (max: 2048)')
     parser.add_argument('--gaussianNoise', action='store_true', 
                         default=False, help='Add Gaussian noise into dataset during training')
     parser.add_argument('--trainView', action='store_true', 

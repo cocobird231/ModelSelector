@@ -75,8 +75,7 @@ def train_one_epoch(net, opt, trainLoader, args):
 
 def train(net, trainLoader, validLoader, textLog, boardLog, args):
     opt = optim.Adam(net.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = MultiStepLR(opt, milestones=[75, 150, 200], gamma=0.1)
-    # scheduler = MultiStepLR(opt, milestones=[100, 150, 200], gamma=0.1)
+    if (args.multiLR) : scheduler = MultiStepLR(opt, milestones=args.multiLR, gamma=0.1)
     
     bestTrainLoss = 0
     bestTrainEpoch = 0
@@ -84,7 +83,7 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
     bestValidEpoch = 0
     for epoch in range(args.epochs):
         loss, lossDict = train_one_epoch(net, opt, trainLoader, args)
-        scheduler.step()
+        if (args.multiLR) : scheduler.step()
         
         if (epoch == 0):
             bestTrainLoss = loss
@@ -182,29 +181,40 @@ def initEnv(args):
         raise 'Unexpected error'
 
 
-if (__name__ == '__main__'):
-    args = ModelSelectorParser()
-    textLog = initEnv(args)
-    if (args.featModel == 'pointnet'):
-        net = PointNetCls(k=40, feature_transform=True)
-    elif (args.featModel == 'pointnet2'):
-        net = PointNet2(k=40)
-    if (not torch.cuda.is_available() or not args.cuda):
+def initDevice(args):
+    if (not args.cuda or not torch.cuda.is_available()):
         device = torch.device('cpu')
         args.cuda = False
         args.multiCuda = False
-    elif (args.multiCuda and torch.cuda.device_count() > 1):# Use multiple cuda device
-        net = nn.DataParallel(net)
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
     elif (torch.device(args.cudaDevice)):
         device = torch.device(args.cudaDevice)
         torch.cuda.set_device(device.index)
-        args.multiCuda = False
     else:
         device = torch.device('cpu')
         args.cuda = False
         args.multiCuda = False
+    return device, args
+
+
+def initListArgs(args):
+    if (args.multiLR) : args.multiLR = args.multiLR if len(args.multiLR) > 0 else None
+    if (args.specCat) : args.specCat = args.specCat if len(args.specCat) > 0 else None
+    return args
+
+
+if (__name__ == '__main__'):
+    args = ModelSelectorParser()
+    textLog = initEnv(args)
+    device, args = initDevice(args)
+    args = initListArgs(args)
+    if (args.featModel == 'pointnet') : net = PointNetCls(k=40, feature_transform=True)
+    elif (args.featModel == 'pointnet2') : net = PointNet2(k=40)
+
+    if (args.multiCuda and torch.cuda.device_count() > 1):# Use multiple cuda device
+        net = nn.DataParallel(net)
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
     net.to(device)
+    
     textLog.writeLog(args.__str__())
     if (not args.eval):
         boardLog = SummaryWriter(log_dir=args.saveModelDir)
@@ -229,7 +239,7 @@ if (__name__ == '__main__'):
         
         boardLog.close()
     else:
-        testLoader = ModelSelectorValidDataset(VALID_DIR=args.validDataset, specCatList = args.specCat if (args.specCat != None) else [])
+        testLoader = ModelSelectorValidDataset(VALID_DIR=args.validDataset, specCatList = args.specCat if (args.specCat) else [])
         net.load_state_dict(torch.load(args.modelPath, map_location=device))
         CalBestTemplate(net, testLoader, args)
     textLog.close()
