@@ -24,11 +24,8 @@ class ModelNet40H5(Dataset):
     def __init__(self, DIR_PATH : str, dataPartition = 'None', 
                  tmpPointNum = 1024, srcPointNum = 1024, 
                  gaussianNoise = True, randView = False, scaling = False, 
-                 angleRange = 90, translationRange = 0.5, scalingRange = 0.2, triplet = False):
-        self.triplet = triplet
+                 angleRange = 90, translationRange = 0.5, scalingRange = 0.2):
         self.data, self.label = self.load_data(DIR_PATH, dataPartition)
-        
-        if (self.triplet) : self.catDataIdxDict = self.getCatData()
         
         self.tmpPointNum = tmpPointNum
         self.srcPointNum = srcPointNum
@@ -57,14 +54,6 @@ class ModelNet40H5(Dataset):
         all_label = np.concatenate(all_label, axis=0)
         return all_data, all_label
     
-    def getCatData(self):
-        catList = self.label.T.squeeze().tolist()
-        catSet = set(catList)
-        catDataIdxDict = dict()
-        for cat in catSet : catDataIdxDict[cat] = []
-        for i, label in enumerate(catList) : catDataIdxDict[label].append(i)
-        return catDataIdxDict
-    
     def __len__(self):
         return self.data.shape[0]
     
@@ -82,18 +71,8 @@ class ModelNet40H5(Dataset):
         if (self.scaling):
             pc1 = scaling_pointCloud(pc1)
             pc2 = scaling_pointCloud(pc2)
-        if (self.triplet):
-            catDataIdxList = self.catDataIdxDict[self.label[item].item()]
-            selec = item
-            while (selec == item) : selec = np.random.choice(catDataIdxList)
-            pc3 = self.data[selec]
-            pc3 = np.random.permutation(pc3)[:self.tmpPointNum]
-            pc3 = rotate_pointCloud(pc3)
-            if (self.gaussianNoise) : pc3 = jitter_pointcloud(pc3)
-            if (self.scaling) : pc3 = scaling_pointCloud(pc3)
-            return pc1.astype('float32'), pc2.astype('float32'), pc3.astype('float32'), self.label[item]
         # Output pc1, pc2: N x 3
-        return pc1.astype('float32'), pc2.astype('float32'), pc2.astype('float32'), self.label[item]
+        return pc1.astype('float32'), pc2.astype('float32'), self.label[item]
 
 
 #############################################################

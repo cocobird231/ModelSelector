@@ -112,20 +112,17 @@ class PointNetCls(nn.Module):
         self.bn2 = nn.BatchNorm1d(256)
         self.relu = nn.ReLU()
 
-    def forward(self, x, x2, x3):
+    def forward(self, x, x2):
         x = x.transpose(2, 1)
         x2 = x2.transpose(2, 1)
-        x3 = x3.transpose(2, 1)
         x, trans, trans_feat = self.feat(x)
         x2, trans, trans_feat = self.feat(x2)
-        x3, trans, trans_feat = self.feat(x3)
         globF = x.contiguous()
         globF2 = x2.contiguous()
-        globFNeg = x3.contiguous()
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.dropout(self.fc2(x))))
         x = self.fc3(x)
-        return F.log_softmax(x, dim=1), globF, globF2, globFNeg
+        return F.log_softmax(x, dim=1), globF, globF2
 
 
 #############################################################
@@ -303,7 +300,7 @@ class PointNet2(nn.Module):
         features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
         return xyz, features
         
-    def forward(self, x, x2, x3):
+    def forward(self, x, x2):
         x_xyz, x_feat = self._break_up_pc(x)
         x_xyz, x_feat = self.sa1(x_xyz, x_feat)
         x_xyz, x_feat = self.sa2(x_xyz, x_feat)
@@ -314,13 +311,7 @@ class PointNet2(nn.Module):
         x_xyz, x_feat = self.sa2(x_xyz, x_feat)
         x_xyz, x_feat = self.sa3(x_xyz, x_feat)
         globF2 = x_feat.contiguous().squeeze(-1)
-        x_xyz, x_feat = self._break_up_pc(x3)
-        x_xyz, x_feat = self.sa1(x_xyz, x_feat)
-        x_xyz, x_feat = self.sa2(x_xyz, x_feat)
-        x_xyz, x_feat = self.sa3(x_xyz, x_feat)
-        globFNeg = x_feat.contiguous().squeeze(-1)
-        
-        return F.log_softmax(self.fc_layer(globF.contiguous()), dim=1), globF, globF2, globFNeg
+        return F.log_softmax(self.fc_layer(globF), dim=1), globF, globF2
 
 
 if __name__ == '__main__':

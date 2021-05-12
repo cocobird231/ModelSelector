@@ -56,12 +56,6 @@ def ModelSelectorParser():
                         default=False, help='Using L1 loss')
     parser.add_argument('--L2Loss', action='store_true', 
                         default=False, help='Using L2 loss')
-    parser.add_argument('--triplet', action='store_true', 
-                        default=False, help='Using triplet loss')
-    parser.add_argument('--tripletL2', action='store_true', 
-                        default=False, help='Using MSE triplet loss')
-    parser.add_argument('--tripletMg', type=float, 
-                        default=None, help='Using MSE triplet loss with given margin')
     # Validation options
     parser.add_argument('--validDataset', type=str, 
                         default='D:/Datasets/ModelNet40_ModelSelector_VALID', help='ModelNet40_ModelSelector_VALID dataset path')

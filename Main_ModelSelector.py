@@ -31,14 +31,15 @@ def eval_one_epoch(net, testLoader, args):
     avgLossDict = GetModelSelectorCriterionLossDict(args)
     avgLoss = 0
     cnt = 0
-    for srcPC, tmpPC, negPC, label in tqdm(testLoader):
+    for srcPC, tmpPC, label in tqdm(testLoader):
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
-            negPC = negPC.cuda()
             label = label.cuda()
-        clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
-        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
+        
+        clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+        
         for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
         cnt += 1
@@ -51,19 +52,16 @@ def train_one_epoch(net, opt, trainLoader, args):
     avgLossDict = GetModelSelectorCriterionLossDict(args)
     avgLoss = 0
     cnt = 0
-    for srcPC, tmpPC, negPC, label in tqdm(trainLoader):
+    for srcPC, tmpPC, label in tqdm(trainLoader):
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
-            negPC = negPC.cuda()
             label = label.cuda()
             
         opt.zero_grad()
-        
-        clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
-        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
+        clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
         loss.backward()
-        
         opt.step()
         
         for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
@@ -178,6 +176,7 @@ def initEnv(args):
             raise 'featModel error choices:[pointnet, pointnet2]'
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
+        textLog.writeLog(args.__str__())
         return textLog
     except:
         raise 'Unexpected error'
@@ -195,6 +194,10 @@ def initDevice(args):
         device = torch.device('cpu')
         args.cuda = False
         args.multiCuda = False
+    if (args.multiCuda and torch.cuda.device_count() > 1):
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+    else:
+        args.multiCuda = False
     return device, args
 
 
@@ -206,18 +209,17 @@ def initListArgs(args):
 
 if (__name__ == '__main__'):
     args = ModelSelectorParser()
-    textLog = initEnv(args)
-    device, args = initDevice(args)
     args = initListArgs(args)
+    device, args = initDevice(args)
+    textLog = initEnv(args)
+    
     if (args.featModel == 'pointnet') : net = PointNetCls(k=40, feature_transform=True)
     elif (args.featModel == 'pointnet2') : net = PointNet2(k=40)
 
-    if (args.multiCuda and torch.cuda.device_count() > 1):# Use multiple cuda device
-        net = nn.DataParallel(net)
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
+    if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)
     
-    textLog.writeLog(args.__str__())
+    
     if (not args.eval):
         boardLog = SummaryWriter(log_dir=args.saveModelDir)
         
@@ -225,16 +227,14 @@ if (__name__ == '__main__'):
                                              srcPointNum=args.inputPoints, 
                                              tmpPointNum=args.inputPoints, 
                                              gaussianNoise=args.gaussianNoise, 
-                                             scaling=args.scaling, 
-                                             triplet=args.triplet or args.tripletL2 or args.tripletMg), 
+                                             scaling=args.scaling), 
                                  batch_size=args.batchSize, shuffle=True)
         
         trainLoader = DataLoader(ModelNet40H5(dataPartition='train', DIR_PATH=args.dataset, 
                                               srcPointNum=args.inputPoints, 
                                               tmpPointNum=args.inputPoints, 
                                               gaussianNoise=args.gaussianNoise, 
-                                              scaling=args.scaling, 
-                                              triplet=args.triplet or args.tripletL2 or args.tripletMg), 
+                                              scaling=args.scaling), 
                                  batch_size=args.batchSize, shuffle=True)
         
         train(net, trainLoader, validLoader, textLog, boardLog, args)
