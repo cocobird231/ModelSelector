@@ -275,7 +275,7 @@ sys.path.append(os.path.join('/home/wei/Desktop/votenet2', 'pointnet2'))
 from pointnet2_modules import PointnetSAModule
 
 class PointNet2(nn.Module):
-    def __init__(self, input_feat_dim = 0, k = 40, triplet = False):
+    def __init__(self, input_feat_dim = 0, k = 40):
         super().__init__()
         self.sa1 = PointnetSAModule(npoint=512, 
                                     radius=0.2, 
@@ -298,14 +298,12 @@ class PointNet2(nn.Module):
                                       nn.Dropout(0.5), 
                                       nn.Linear(256, k))
         
-        self.triplet = triplet
-        
     def _break_up_pc(self, pc):
         xyz = pc[..., 0:3].contiguous()
         features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
         return xyz, features
         
-    def forward(self, x, x2, x3 = None):
+    def forward(self, x, x2, x3):
         x_xyz, x_feat = self._break_up_pc(x)
         x_xyz, x_feat = self.sa1(x_xyz, x_feat)
         x_xyz, x_feat = self.sa2(x_xyz, x_feat)
@@ -316,14 +314,13 @@ class PointNet2(nn.Module):
         x_xyz, x_feat = self.sa2(x_xyz, x_feat)
         x_xyz, x_feat = self.sa3(x_xyz, x_feat)
         globF2 = x_feat.contiguous().squeeze(-1)
-        if (self.triplet):
-            x_xyz, x_feat = self._break_up_pc(x3)
-            x_xyz, x_feat = self.sa1(x_xyz, x_feat)
-            x_xyz, x_feat = self.sa2(x_xyz, x_feat)
-            x_xyz, x_feat = self.sa3(x_xyz, x_feat)
-            globFNeg = x_feat.contiguous().squeeze(-1)
-            return F.log_softmax(self.fc_layer(globF), dim=1), globF, globF2, globFNeg
-        return F.log_softmax(self.fc_layer(globF), dim=1), globF, globF2, None
+        x_xyz, x_feat = self._break_up_pc(x3)
+        x_xyz, x_feat = self.sa1(x_xyz, x_feat)
+        x_xyz, x_feat = self.sa2(x_xyz, x_feat)
+        x_xyz, x_feat = self.sa3(x_xyz, x_feat)
+        globFNeg = x_feat.contiguous().squeeze(-1)
+        
+        return F.log_softmax(self.fc_layer(globF.contiguous()), dim=1), globF, globF2, globFNeg
 
 
 if __name__ == '__main__':

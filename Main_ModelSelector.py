@@ -35,7 +35,7 @@ def eval_one_epoch(net, testLoader, args):
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
-            negPC = negPC.cuda() if (args.triplet or args.tripletL2 or args.tripletMg) else None
+            negPC = negPC.cuda()
             label = label.cuda()
         clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
         loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
@@ -52,11 +52,10 @@ def train_one_epoch(net, opt, trainLoader, args):
     avgLoss = 0
     cnt = 0
     for srcPC, tmpPC, negPC, label in tqdm(trainLoader):
-        
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
-            negPC = negPC.cuda() if (args.triplet or args.tripletL2 or args.tripletMg) else None
+            negPC = negPC.cuda()
             label = label.cuda()
             
         opt.zero_grad()
