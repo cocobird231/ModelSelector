@@ -178,7 +178,7 @@ def initEnv(args):
             raise 'Model path error'
         if (args.eval and not os.path.exists(args.validDataset)):
             raise 'validDataset path error'
-        if (args.featModel != 'pointnet' and args.featModel != 'pointnet2'):
+        if (args.featModel != 'pointnet' and args.featModel != 'pointnet2Comp' and args.featModel != 'pointnet2Feat'):
             raise 'featModel error choices:[pointnet, pointnet2]'
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
