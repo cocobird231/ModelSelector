@@ -26,7 +26,7 @@ def ModelSelectorParser():
     parser.add_argument('--startEpoch', type=int, 
                         default=0, help='Start epoch')
     parser.add_argument('--multiLR', type=int, nargs='+', 
-                        help='Validating on specific categories')
+                        help='Use multi learning rate with input steps')
     # Device settings
     parser.add_argument('--cuda', action='store_true', 
                         default=False, help='Training via cuda device, ignore while cuda device not found')# Windows test

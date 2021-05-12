@@ -93,7 +93,7 @@ class ModelNet40H5(Dataset):
             if (self.scaling) : pc3 = scaling_pointCloud(pc3)
             return pc1.astype('float32'), pc2.astype('float32'), pc3.astype('float32'), self.label[item]
         # Output pc1, pc2: N x 3
-        return pc1.astype('float32'), pc2.astype('float32'), pc2.astype('float32'), self.label[item]
+        return pc1.astype('float32'), pc2.astype('float32'), None, self.label[item]
 
 
 #############################################################

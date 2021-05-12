@@ -35,7 +35,7 @@ def eval_one_epoch(net, testLoader, args):
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
-            negPC = negPC.cuda()
+            negPC = negPC.cuda() if (args.triplet or args.tripletL2 or args.tripletMg) else None
             label = label.cuda()
         clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
         loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label.squeeze(), args)
@@ -52,10 +52,11 @@ def train_one_epoch(net, opt, trainLoader, args):
     avgLoss = 0
     cnt = 0
     for srcPC, tmpPC, negPC, label in tqdm(trainLoader):
+        
         if (args.cuda):
             srcPC = srcPC.cuda()
             tmpPC = tmpPC.cuda()
-            negPC = negPC.cuda()
+            negPC = negPC.cuda() if (args.triplet or args.tripletL2 or args.tripletMg) else None
             label = label.cuda()
             
         opt.zero_grad()
@@ -174,6 +175,8 @@ def initEnv(args):
             raise 'Model path error'
         if (args.eval and not os.path.exists(args.validDataset)):
             raise 'validDataset path error'
+        if (args.featModel != 'pointnet' and args.featModel != 'pointnet2'):
+            raise 'featModel error choices:[pointnet, pointnet2]'
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
         return textLog
