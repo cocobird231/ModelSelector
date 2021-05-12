@@ -19,7 +19,7 @@ def ModelSelectorParser():
     parser.add_argument('-m', '--modelPath',    required=False, type=str, metavar='PATH', 
                         default='models/model_ModelSelector_best_pointnet_scaling_noL1.pth', help='Pre-trained model path for ModelSelector')# Windows test
     parser.add_argument('-f', '--featModel',    required=False, type=str, metavar='N', 
-                        default='pointnet', choices=['pointnet', 'pointnet2'], help='Feature extractor')# Windows test
+                        default='pointnet', choices=['pointnet', 'pointnet2Comp', 'pointnet2Feat'], help='Feature extractor')# Windows test
     # Training arguments
     parser.add_argument('--eval', action='store_true', 
                         default=False, help='Run evaluation mode')# Windows test
@@ -93,4 +93,37 @@ def PointNetLKParser():
                         default='log_PointNetLK.txt', help='Log file name')
     parser.add_argument('--saveLogDir', type=str, 
                         default='log', help='Path for log saving')
+    return parser.parse_args()
+
+def PointNet2Parser():
+    parser = argparse.ArgumentParser(description='PointNet2')
+    # Required arguments
+    parser.add_argument('-d', '--dataset',      required=False, type=str, metavar='PATH', 
+                        default='D:\\Datasets\\modelnet40_ply_hdf5_2048', help='ModelNet40_HDF5 dataset path')
+    parser.add_argument('-b', '--batchSize',    required=False, type=int, metavar='N', 
+                        default=8, help='Set batch size')
+    parser.add_argument('-e', '--epochs',       required=False, type=int, metavar='N', 
+                        default=200, help='Set epoch size')
+    # Device settings
+    parser.add_argument('--cuda', action='store_true', 
+                        default=False, help='Training via cuda device, ignore while cuda device not found')# Windows test
+    parser.add_argument('--cudaDevice', type=str, 
+                        default='cuda:0', help='Select cuda device, ignore while --multiCuda flag is true')
+    # Training settings
+    parser.add_argument('--inputPoints', type=int, 
+                        default=2048, help='Input points (max: 2048)')
+    parser.add_argument('--gaussianNoise', action='store_true', 
+                        default=False, help='Add Gaussian noise into dataset during training')
+    parser.add_argument('--trainView', action='store_true', 
+                        default=False, help='Training via viewed point cloud')
+    parser.add_argument('--scaling', action='store_true', 
+                        default=False, help='Training via scaled point cloud')
+    parser.add_argument('--RD', type=float, 
+                        default=None, help='Random dropout point cloud during training')
+    parser.add_argument('--saveModelDir', type=str, 
+                        default='result', help='Path for model saving')
+    parser.add_argument('--logName', type=str, 
+                        default='log_pointnet2.txt', help='Log file name')
+    parser.add_argument('--saveLogDir', type=str, 
+                        default='result', help='Path for log saving')
     return parser.parse_args()

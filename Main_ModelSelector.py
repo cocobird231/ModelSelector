@@ -18,7 +18,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from Module_ModelSelector import PointNetCls, PointNet2
+from Module_ModelSelector import PointNetCls, PointNet2Comp, PointNet2Feat
 from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
 from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidDataset
 
@@ -129,7 +129,13 @@ def CalBestTemplate(net, testLoader, args):
             catPCD = catModelU.model.astype('float32')
             catPts = torch.tensor(catPCD).view(1, -1, 3)
             if (args.cuda) : catPts = catPts.cuda()
-            _, srcFeat, tmpFeat, _ = net(srcPts, catPts, srcPts)
+            
+            if (args.featModel == 'pointnet2Feat'):
+                srcFeat = net(srcPts)
+                tmpFeat = net(catPts)
+            else:
+                _, srcFeat, tmpFeat = net(srcPts, catPts)
+            
             if (args.cuda): srcFeat = srcFeat.cpu()
             if (args.cuda): tmpFeat = tmpFeat.cpu()
             srcFeat = srcFeat.detach().numpy().squeeze()
@@ -214,7 +220,8 @@ if (__name__ == '__main__'):
     textLog = initEnv(args)
     
     if (args.featModel == 'pointnet') : net = PointNetCls(k=40, feature_transform=True)
-    elif (args.featModel == 'pointnet2') : net = PointNet2(k=40)
+    elif (args.featModel == 'pointnet2Comp') : net = PointNet2Comp(k=40)
+    elif (args.featModel == 'pointnet2Feat') : net = PointNet2Feat()
 
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)

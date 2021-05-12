@@ -271,7 +271,7 @@ import sys
 sys.path.append(os.path.join('/home/wei/Desktop/votenet2', 'pointnet2'))
 from pointnet2_modules import PointnetSAModule
 
-class PointNet2(nn.Module):
+class PointNet2Comp(nn.Module):
     def __init__(self, input_feat_dim = 0, k = 40):
         super().__init__()
         self.sa1 = PointnetSAModule(npoint=512, 
@@ -314,6 +314,51 @@ class PointNet2(nn.Module):
         return F.log_softmax(self.fc_layer(globF), dim=1), globF, globF2
 
 
+class PointNet2Feat(nn.Module):
+    def __init__(self, input_feat_dim = 0):
+        super().__init__()
+        self.sa1 = PointnetSAModule(npoint=512, 
+                                    radius=0.2, 
+                                    nsample=64, 
+                                    mlp=[input_feat_dim, 64, 128])
+        
+        self.sa2 = PointnetSAModule(npoint=128, 
+                                    radius=0.4, 
+                                    nsample=64, 
+                                    mlp=[128, 128, 256])
+        
+        self.sa3 = PointnetSAModule(mlp=[256, 512, 1024])
+        
+    def _break_up_pc(self, pc):
+        xyz = pc[..., 0:3].contiguous()
+        features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
+        return xyz, features
+        
+    def forward(self, x):
+        x_xyz, x_feat = self._break_up_pc(x)
+        x_xyz, x_feat = self.sa1(x_xyz, x_feat)
+        x_xyz, x_feat = self.sa2(x_xyz, x_feat)
+        x_xyz, x_feat = self.sa3(x_xyz, x_feat)
+        return x_feat.squeeze()
+
+
+class PointNet2Cls(nn.Module):
+    def __init__(self, pn2Feat, k = 40):
+        super().__init__()
+        self.features = pn2Feat
+        self.fc_layer = nn.Sequential(nn.Linear(1024, 512, bias=False), 
+                              nn.BatchNorm1d(512), 
+                              nn.ReLU(True), 
+                              nn.Linear(512, 256, bias=False), 
+                              nn.BatchNorm1d(256), 
+                              nn.ReLU(True), 
+                              nn.Dropout(0.5), 
+                              nn.Linear(256, k))
+    def forward(self, x):
+        globFeat = self.features(x)
+        return F.log_softmax(self.fc_layer(globFeat), dim=1)
+
+
 if __name__ == '__main__':
-    net = PointNet2()
+    net = PointNet2Comp()
     print(net)
