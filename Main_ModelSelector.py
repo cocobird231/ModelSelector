@@ -18,14 +18,19 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from Module_ModelSelector import PointNetCls, PointNet2Comp, PointNet2Feat, PointNet2Cls
+from Module_ModelSelector import PointNetCls, PointNet2Comp, PointNet2Feat, PointNet2Cls, DGCNNFeat, DGCNN
 from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
 from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidDataset
 
 from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO
 
-acceptModelList = ['pointnet', 'pointnetCls', 'pointnet2', 'pointnet2Comp', 'pointnet2Feat']
+sepModelList = ['pointnet', 'pointnet2', 'dgcnn']
+intModelList = ['pointnetCls', 'pointnet2Comp']
+acceptModelList = [*sepModelList, *intModelList, 'pointnet2Feat']
+# Seperate models: pointnet, pointnet2, dgcnn    -> cls, feat = net(pc)
+# Integrate models: pointnetCls, pointnet2Comp   -> cls, feat, feat2 = net(pc1, pc2)
+# Validation only: pointnet2Feat                 -> feat = net(pc)
 
 def eval_one_epoch(net, testLoader, args):
     net.eval()
@@ -151,7 +156,7 @@ def CalBestTemplate(net, testLoader, args):
             catPts = torch.tensor(catPCD).view(1, -1, 3)
             if (args.cuda) : catPts = catPts.cuda()
             
-            if (args.featModel == 'pointnet2Feat'):
+            if (args.sepModel):
                 srcFeat = net(srcPts)
                 tmpFeat = net(catPts)
             else:
@@ -201,10 +206,12 @@ def initEnv(args):
             raise 'validDataset path error'
         if (args.featModel not in acceptModelList):
             raise 'featModel error.\n\tChoices:{}'.format(acceptModelList)
-        if (args.featModel == 'pointnet' or args.featModel == 'pointnet2'):
+        if (args.featModel in sepModelList):
             args.sepModel = True
         if (args.L1Loss or args.L2Loss):
             args.featLoss = True
+        if (args.featModel == 'pointnet2Feat' and not args.eval):
+            raise 'Model pointnet2Feat can only use in validation mode'
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
         textLog.writeLog(args.__str__())
@@ -239,7 +246,7 @@ def initListArgs(args):
 
 
 if (__name__ == '__main__'):
-    args = ModelSelectorParser()
+    args = ModelSelectorParser(acceptModelList)
     args = initListArgs(args)
     device, args = initDevice(args)
     textLog, args = initEnv(args)
@@ -256,6 +263,9 @@ if (__name__ == '__main__'):
     elif (args.featModel == 'pointnet2'):
         feat = PointNet2Feat()
         net = PointNet2Cls(feat)
+    elif (args.featModel == 'dgcnn'):
+        feat = DGCNNFeat()
+        net = DGCNN(feat)
     
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)

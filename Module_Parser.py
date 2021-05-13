@@ -7,8 +7,7 @@ Created on Fri Apr 30 01:14:23 2021
 
 import argparse
 
-def ModelSelectorParser():
-    acceptModelList = ['pointnet', 'pointnetCls', 'pointnet2', 'pointnet2Comp', 'pointnet2Feat']
+def ModelSelectorParser(acceptModelList):
     parser = argparse.ArgumentParser(description='ModelSelector')
     # Required arguments
     parser.add_argument('-d', '--dataset',      required=False, type=str, metavar='PATH', 
