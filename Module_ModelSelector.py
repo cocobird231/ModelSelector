@@ -56,9 +56,9 @@ class STNkd(nn.Module):
         return x
 
 
-class PointNetfeat(nn.Module):
+class PointNetFeat(nn.Module):
     def __init__(self, global_feat = True, feature_transform = False):
-        super(PointNetfeat, self).__init__()
+        super(PointNetFeat, self).__init__()
         self.stn = STNkd(k=3)
         self.conv1 = torch.nn.Conv1d(3, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
@@ -99,11 +99,34 @@ class PointNetfeat(nn.Module):
             return torch.cat([x, pointfeat], 1), trans, trans_feat
 
 
-class PointNetCls(nn.Module):
-    def __init__(self, k=2, feature_transform=True):
-        super(PointNetCls, self).__init__()
-        self.feature_transform = feature_transform
-        self.feat = PointNetfeat(global_feat=True, feature_transform=feature_transform)
+class PointNet(nn.Module):
+    def __init__(self, feat = None, k=40, retGlobFeat = False):
+        super(PointNetComp, self).__init__()
+        self.retGlobF = retGlobFeat
+        self.features = PointNetFeat(True, True) if (not feat) else feat
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, k)
+        self.dropout = nn.Dropout(p=0.3)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = x.transpose(2, 1)
+        x, trans, trans_feat = self.features(x)
+        globF = x.contiguous()
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        x = self.fc3(x)
+        if (self.retGlobF) : return F.log_softmax(x, dim=1), globF
+        else : return F.log_softmax(x, dim=1)
+
+
+class PointNetComp(nn.Module):
+    def __init__(self, k=40, feature_transform=True):
+        super(PointNetComp, self).__init__()
+        self.features = PointNetFeat(global_feat=True, feature_transform=feature_transform)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k)
@@ -115,8 +138,8 @@ class PointNetCls(nn.Module):
     def forward(self, x, x2):
         x = x.transpose(2, 1)
         x2 = x2.transpose(2, 1)
-        x, trans, trans_feat = self.feat(x)
-        x2, trans, trans_feat = self.feat(x2)
+        x, trans, trans_feat = self.features(x)
+        x2, trans, trans_feat = self.features(x2)
         globF = x.contiguous()
         globF2 = x2.contiguous()
         x = F.relu(self.bn1(self.fc1(x)))
@@ -191,6 +214,7 @@ class DGCNNFeat(nn.Module):
                                    nn.LeakyReLU(negative_slope=0.2))
     
     def forward(self, x):
+        x = x.transpose(2, 1)
         batch_size = x.size(0)
         x = get_graph_feature(x, k=self.k)
         x = self.conv1(x)
@@ -218,11 +242,11 @@ class DGCNNFeat(nn.Module):
 
 
 class DGCNN(nn.Module):
-    def __init__(self, feat, dp = 0.3, output_channels=40):
+    def __init__(self, feat = None, emb_dims = 512, dp = 0.3, output_channels=40, retGlobFeat = False):
         super(DGCNN, self).__init__()
-        self.feature = feat
-        
-        self.linear1 = nn.Linear(self.feature.emb_dims * 2, 512, bias=False)
+        self.retGlobF = retGlobFeat
+        self.features = DGCNNFeat(emb_dims, k = 20) if (not feat) else feat
+        self.linear1 = nn.Linear(emb_dims * 2, 512, bias=False)
         self.bn6 = nn.BatchNorm1d(512)
         self.dp1 = nn.Dropout(p=dp)
         self.linear2 = nn.Linear(512, 256)
@@ -231,14 +255,15 @@ class DGCNN(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
     
     def forward(self, x):
-        x = self.feat(x)
+        x = self.features(x)
         globF = x.contiguous()
         x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2)
         x = self.dp1(x)
         x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2)
         x = self.dp2(x)
         x = self.linear3(x)
-        return F.log_softmax(x, dim=1), globF
+        if (self.retGlobF) : return F.log_softmax(x, dim=1), globF
+        else : return F.log_softmax(x, dim=1)
 
 #############################################################
 #                           PointNet++
@@ -319,10 +344,11 @@ class PointNet2Feat(nn.Module):
         return x_feat.squeeze()
 
 
-class PointNet2Cls(nn.Module):
-    def __init__(self, pn2Feat, k = 40):
+class PointNet2(nn.Module):
+    def __init__(self, pn2Feat = None, catSize = 40, retGlobFeat = False):
         super().__init__()
-        self.features = pn2Feat
+        self.retGlobF = retGlobFeat
+        self.features = PointNet2Feat() if (not pn2Feat) else pn2Feat
         self.fc_layer = nn.Sequential(nn.Linear(1024, 512, bias=False), 
                               nn.BatchNorm1d(512), 
                               nn.ReLU(True), 
@@ -330,10 +356,11 @@ class PointNet2Cls(nn.Module):
                               nn.BatchNorm1d(256), 
                               nn.ReLU(True), 
                               nn.Dropout(0.5), 
-                              nn.Linear(256, k))
+                              nn.Linear(256, catSize))
     def forward(self, x):
         globFeat = self.features(x)
-        return F.log_softmax(self.fc_layer(globFeat), dim=1), globFeat
+        if (self.retGlobF) : return F.log_softmax(self.fc_layer(globFeat), dim=1), globFeat
+        else : return F.log_softmax(self.fc_layer(globFeat), dim=1)
 
 
 if __name__ == '__main__':

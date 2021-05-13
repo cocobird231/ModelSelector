@@ -18,7 +18,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from Module_ModelSelector import PointNetCls, PointNet2Comp, PointNet2Feat, PointNet2Cls, DGCNNFeat, DGCNN
+from Module_ModelSelector import PointNet, PointNetFeat, PointNetComp, PointNet2, PointNet2Feat, PointNet2Comp, DGCNN, DGCNNFeat
 from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
 from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidDataset
 
@@ -26,11 +26,12 @@ from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO
 
 sepModelList = ['pointnet', 'pointnet2', 'dgcnn']
-intModelList = ['pointnetCls', 'pointnet2Comp']
-acceptModelList = [*sepModelList, *intModelList, 'pointnet2Feat']
-# Seperate models: pointnet, pointnet2, dgcnn    -> cls, feat = net(pc)
-# Integrate models: pointnetCls, pointnet2Comp   -> cls, feat, feat2 = net(pc1, pc2)
-# Validation only: pointnet2Feat                 -> feat = net(pc)
+intModelList = ['pointnetComp', 'pointnet2Comp']
+featModelList = ['pointnetFeat', 'pointnet2Feat', 'dgcnnFeat']
+acceptModelList = [*sepModelList, *intModelList, *featModelList]
+# Seperate models: pointnet, pointnet2, dgcnn               -> cls, feat = net(pc) or cls = net(pc)
+# Integrate models: pointnetComp, pointnet2Comp             -> cls, feat, feat2 = net(pc1, pc2)
+# Validation only: pointnetFeat, pointnet2Feat, dgcnnFeat   -> feat = net(pc)
 
 def eval_one_epoch(net, testLoader, args):
     net.eval()
@@ -206,12 +207,11 @@ def initEnv(args):
             raise 'validDataset path error'
         if (args.featModel not in acceptModelList):
             raise 'featModel error.\n\tChoices:{}'.format(acceptModelList)
-        if (args.featModel in sepModelList):
-            args.sepModel = True
-        if (args.L1Loss or args.L2Loss):
-            args.featLoss = True
-        if (args.featModel == 'pointnet2Feat' and not args.eval):
+        if (args.featModel in featModelList and not args.eval):
             raise 'Model pointnet2Feat can only use in validation mode'
+        if (args.featModel in sepModelList) : args.sepModel = True
+        if (args.L1Loss or args.L2Loss) : args.featLoss = True
+
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
         textLog.writeLog(args.__str__())
@@ -257,15 +257,14 @@ if (__name__ == '__main__'):
     torch.cuda.manual_seed_all(randSeed)
     np.random.seed(randSeed)
     
-    if (args.featModel == 'pointnetCls') : net = PointNetCls(k=40, feature_transform=True)
-    elif (args.featModel == 'pointnet2Comp') : net = PointNet2Comp(k=40)
-    elif (args.featModel == 'pointnet2Feat') : net = PointNet2Feat()
-    elif (args.featModel == 'pointnet2'):
-        feat = PointNet2Feat()
-        net = PointNet2Cls(feat)
-    elif (args.featModel == 'dgcnn'):
-        feat = DGCNNFeat()
-        net = DGCNN(feat)
+    if (args.featModel == 'pointnetComp') : net = PointNetComp(40, True)# cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.featModel == 'pointnetFeat') : net = PointNetFeat(True, True)# feat = net(pc)
+    elif (args.featModel == 'pointnet') : net = PointNet(retGlobFeat = True)# cls, feat = net(pc)
+    elif (args.featModel == 'pointnet2Comp') : net = PointNet2Comp(0, 40)# cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.featModel == 'pointnet2Feat') : net = PointNet2Feat(0)# feat = net(pc)
+    elif (args.featModel == 'pointnet2') : net = PointNet2(retGlobFeat = True)# cls, feat = net(pc)
+    elif (args.featModel == 'dgcnnFeat') : net = DGCNNFeat(512, 20)# feat = net(pc)
+    elif (args.featModel == 'dgcnn') : net = DGCNN(retGlobFeat = True)# cls, feat = net(pc)
     
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)
