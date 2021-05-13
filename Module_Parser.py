@@ -7,7 +7,9 @@ Created on Fri Apr 30 01:14:23 2021
 
 import argparse
 
+@staticmethod
 def ModelSelectorParser():
+    acceptModelList = ['pointnet', 'pointnetCls', 'pointnet2', 'pointnet2Comp', 'pointnet2Feat']
     parser = argparse.ArgumentParser(description='ModelSelector')
     # Required arguments
     parser.add_argument('-d', '--dataset',      required=False, type=str, metavar='PATH', 
@@ -15,11 +17,11 @@ def ModelSelectorParser():
     parser.add_argument('-b', '--batchSize',    required=False, type=int, metavar='N', 
                         default=8, help='Set batch size')
     parser.add_argument('-e', '--epochs',       required=False, type=int, metavar='N', 
-                        default=400, help='Set epoch size')
+                        default=200, help='Set epoch size')
     parser.add_argument('-m', '--modelPath',    required=False, type=str, metavar='PATH', 
                         default='models/model_ModelSelector_best_pointnet_scaling_noL1.pth', help='Pre-trained model path for ModelSelector')# Windows test
     parser.add_argument('-f', '--featModel',    required=False, type=str, metavar='N', 
-                        default='pointnet', choices=['pointnet', 'pointnet2Comp', 'pointnet2Feat'], help='Feature extractor')# Windows test
+                        default='pointnetCls', choices=acceptModelList, help='Feature extractor')# Windows test
     # Training arguments
     parser.add_argument('--eval', action='store_true', 
                         default=False, help='Run evaluation mode')# Windows test
@@ -45,17 +47,21 @@ def ModelSelectorParser():
                         default=False, help='Training via scaled point cloud')
     parser.add_argument('--RD', type=float, 
                         default=None, help='Random dropout point cloud during training')
+    parser.add_argument('--modelName', type=str, 
+                        default=None, help='Save model file name: {NAME}.pth (default: featModel)')
     parser.add_argument('--saveModelDir', type=str, 
                         default='models', help='Path for model saving')
     parser.add_argument('--logName', type=str, 
                         default='log_ModelSelector.txt', help='Log file name')
     parser.add_argument('--saveLogDir', type=str, 
                         default='models', help='Path for log saving')
+    parser.add_argument('--sepModel', action='store_true', help='Program implement only.')
     # Loss options
     parser.add_argument('--L1Loss', action='store_true', 
                         default=False, help='Using L1 loss')
     parser.add_argument('--L2Loss', action='store_true', 
                         default=False, help='Using L2 loss')
+    parser.add_argument('--featLoss', action='store_true', help='Program implement only.')
     # Validation options
     parser.add_argument('--validDataset', type=str, 
                         default='D:/Datasets/ModelNet40_ModelSelector_VALID', help='ModelNet40_ModelSelector_VALID dataset path')
@@ -67,7 +73,7 @@ def PointNetLKParser():
     parser = argparse.ArgumentParser(description='PointNetLK')
 
     # required.
-    parser.add_argument('-d', '--dataset', default='D:\\Datasets\\ModelNet40_VALID_1024', required=False, type=str, 
+    parser.add_argument('-d', '--dataset', default='D:\\Datasets\\ModelNet40_VALID_1024_2', required=False, type=str, 
                         metavar='PATH', help='path to the input dataset')
     parser.add_argument('-c', '--clsModelPath', default='models/model_PointNetLK_classifier_feat_best.pth_oldSaveVer', required=False, type=str, 
                         metavar='PATH', help='path to trained model file (default: null (no-use))')

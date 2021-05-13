@@ -18,13 +18,14 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from Module_ModelSelector import PointNetCls, PointNet2Comp, PointNet2Feat
+from Module_ModelSelector import PointNetCls, PointNet2Comp, PointNet2Feat, PointNet2Cls
 from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
 from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidDataset
 
 from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO
 
+# acceptModelList = ['pointnet', 'pointnetCls', 'pointnet2', 'pointnet2Comp', 'pointnet2Feat']
 
 def eval_one_epoch(net, testLoader, args):
     net.eval()
@@ -37,8 +38,14 @@ def eval_one_epoch(net, testLoader, args):
             tmpPC = tmpPC.cuda()
             label = label.cuda()
         
-        clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
-        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+        if (args.sepModel):
+            clsProbVec, globalFeat = net(srcPC)
+            if (args.featLoss) : _, globalFeat2 = net(tmpPC)
+            else : globalFeat2 = None
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+        else:
+            clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
         
         for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
@@ -59,8 +66,14 @@ def train_one_epoch(net, opt, trainLoader, args):
             label = label.cuda()
             
         opt.zero_grad()
-        clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
-        loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+        if (args.sepModel):
+            clsProbVec, globalFeat = net(srcPC)
+            if (args.featLoss) : _, globalFeat2 = net(tmpPC)
+            else : globalFeat2 = None
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+        else:
+            clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
         loss.backward()
         opt.step()
         
@@ -88,13 +101,13 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
         elif (bestTrainLoss > loss):
             bestTrainLoss = loss
             bestTrainEpoch = epoch
-            SaveModel(net, args.saveModelDir, 'model_ModelSelector_best.pth', args.multiCuda)
+            SaveModel(net, 'best', args)
         textLog.writeLog('train\tepoch %d\tloss:%f\tbest epoch %d\tloss:%f'%(epoch, loss, bestTrainEpoch, bestTrainLoss))
         boardLog.add_scalar('train/loss', loss, epoch)
         boardLog.add_scalar('train/best_loss', bestTrainLoss, epoch)
         for key in lossDict : boardLog.add_scalar('train/%s' %key, lossDict[key], epoch)
         if (epoch % 10 == 0):
-            SaveModel(net, args.saveModelDir, 'model_ModelSelector_%d.pth' %epoch, args.multiCuda)
+            SaveModel(net, epoch, args)
             loss, lossDict = eval_one_epoch(net, validLoader, args)
             if (epoch == 0):
                 bestValidLoss = loss
@@ -108,11 +121,19 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
     return
 
 
-def SaveModel(net, DIR_PATH, modelName, multiCudaF):
-    if (multiCudaF):
-        torch.save(net.module.state_dict(), os.path.join(DIR_PATH, modelName))
+def SaveModel(net, ver, args):
+    if (not args.modelName) : args.modelName = args.featModel
+    saveModelName = os.path.join(args.saveModelDir, '{}_{}.pth'.format(args.modelName, ver))
+    if (args.multiCuda):
+        torch.save(net.module.state_dict(), saveModelName)
+        if (args.sepModel):
+            saveModelName = os.path.join(args.saveModelDir, '{}_feat_{}.pth'.format(args.modelName, ver))
+            torch.save(net.features.module.state_dict(), saveModelName)
     else:
-        torch.save(net.state_dict(), os.path.join(DIR_PATH, modelName))
+        torch.save(net.state_dict(), saveModelName)
+        if (args.sepModel):
+            saveModelName = os.path.join(args.saveModelDir, '{}_feat_{}.pth'.format(args.modelName, ver))
+            torch.save(net.features.state_dict(), saveModelName)
     return
 
 
@@ -178,12 +199,16 @@ def initEnv(args):
             raise 'Model path error'
         if (args.eval and not os.path.exists(args.validDataset)):
             raise 'validDataset path error'
-        if (args.featModel != 'pointnet' and args.featModel != 'pointnet2Comp' and args.featModel != 'pointnet2Feat'):
-            raise 'featModel error choices:[pointnet, pointnet2]'
+        if (args.featModel not in ModelSelectorParser.acceptModelList):
+            raise 'featModel error.\n\tChoices:{}'.format(ModelSelectorParser.acceptModelList)
+        if (args.featModel == 'pointnet' or args.featModel == 'pointnet2'):
+            args.sepModel = True
+        if (args.L1Loss or args.L2Loss):
+            args.featLoss = True
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
         textLog.writeLog(args.__str__())
-        return textLog
+        return textLog, args
     except:
         raise 'Unexpected error'
 
@@ -217,15 +242,23 @@ if (__name__ == '__main__'):
     args = ModelSelectorParser()
     args = initListArgs(args)
     device, args = initDevice(args)
-    textLog = initEnv(args)
+    textLog, args = initEnv(args)
     
-    if (args.featModel == 'pointnet') : net = PointNetCls(k=40, feature_transform=True)
+    randSeed = int(time.time() * 10000)
+    torch.backends.cudnn.deterministic = True
+    torch.manual_seed(randSeed)
+    torch.cuda.manual_seed_all(randSeed)
+    np.random.seed(randSeed)
+    
+    if (args.featModel == 'pointnetCls') : net = PointNetCls(k=40, feature_transform=True)
     elif (args.featModel == 'pointnet2Comp') : net = PointNet2Comp(k=40)
     elif (args.featModel == 'pointnet2Feat') : net = PointNet2Feat()
-
+    elif (args.featModel == 'pointnet2'):
+        feat = PointNet2Feat()
+        net = PointNet2Cls(feat)
+    
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)
-    
     
     if (not args.eval):
         boardLog = SummaryWriter(log_dir=args.saveModelDir)

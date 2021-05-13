@@ -356,7 +356,7 @@ class PointNet2Cls(nn.Module):
                               nn.Linear(256, k))
     def forward(self, x):
         globFeat = self.features(x)
-        return F.log_softmax(self.fc_layer(globFeat), dim=1)
+        return F.log_softmax(self.fc_layer(globFeat), dim=1), globFeat
 
 
 if __name__ == '__main__':
