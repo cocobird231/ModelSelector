@@ -25,7 +25,7 @@ from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidData
 from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO
 
-# acceptModelList = ['pointnet', 'pointnetCls', 'pointnet2', 'pointnet2Comp', 'pointnet2Feat']
+acceptModelList = ['pointnet', 'pointnetCls', 'pointnet2', 'pointnet2Comp', 'pointnet2Feat']
 
 def eval_one_epoch(net, testLoader, args):
     net.eval()
@@ -199,8 +199,8 @@ def initEnv(args):
             raise 'Model path error'
         if (args.eval and not os.path.exists(args.validDataset)):
             raise 'validDataset path error'
-        if (args.featModel not in ModelSelectorParser.acceptModelList):
-            raise 'featModel error.\n\tChoices:{}'.format(ModelSelectorParser.acceptModelList)
+        if (args.featModel not in acceptModelList):
+            raise 'featModel error.\n\tChoices:{}'.format(acceptModelList)
         if (args.featModel == 'pointnet' or args.featModel == 'pointnet2'):
             args.sepModel = True
         if (args.L1Loss or args.L2Loss):
@@ -244,7 +244,7 @@ if (__name__ == '__main__'):
     device, args = initDevice(args)
     textLog, args = initEnv(args)
     
-    randSeed = int(time.time() * 10000)
+    randSeed = int(time.clock() * 10000)
     torch.backends.cudnn.deterministic = True
     torch.manual_seed(randSeed)
     torch.cuda.manual_seed_all(randSeed)

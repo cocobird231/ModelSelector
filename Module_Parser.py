@@ -7,7 +7,6 @@ Created on Fri Apr 30 01:14:23 2021
 
 import argparse
 
-@staticmethod
 def ModelSelectorParser():
     acceptModelList = ['pointnet', 'pointnetCls', 'pointnet2', 'pointnet2Comp', 'pointnet2Feat']
     parser = argparse.ArgumentParser(description='ModelSelector')
