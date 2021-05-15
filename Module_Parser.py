@@ -18,7 +18,7 @@ def ModelSelectorParser(acceptModelList):
                         default=200, help='Set epoch size')
     parser.add_argument('-m', '--modelPath',    required=False, type=str, metavar='PATH', 
                         default='models/model_ModelSelector_best_pointnet_scaling_noL1.pth', help='Pre-trained model path for ModelSelector')# Windows test
-    parser.add_argument('-f', '--featModel',    required=False, type=str, metavar='N', 
+    parser.add_argument('-t', '--modelType',    required=False, type=str, metavar='N', 
                         default='pointnetComp', choices=acceptModelList, help='Feature extractor')# Windows test
     # Training arguments
     parser.add_argument('--eval', action='store_true', 

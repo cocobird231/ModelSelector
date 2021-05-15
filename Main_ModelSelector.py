@@ -13,6 +13,7 @@ from operator import itemgetter
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
@@ -76,7 +77,9 @@ def train_one_epoch(net, opt, trainLoader, args):
             clsProbVec, globalFeat = net(srcPC)
             if (args.featLoss) : _, globalFeat2 = net(tmpPC)
             else : globalFeat2 = None
-            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+            loss = F.nll_loss(clsProbVec, label.squeeze())
+            lossDict = {'clsLoss' : loss.item()}
+            # loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
         else:
             clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
             loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
@@ -128,7 +131,7 @@ def train(net, trainLoader, validLoader, textLog, boardLog, args):
 
 
 def SaveModel(net, ver, args):
-    if (not args.modelName) : args.modelName = args.featModel
+    if (not args.modelName) : args.modelName = args.modelType
     saveModelName = os.path.join(args.saveModelDir, '{}_{}.pth'.format(args.modelName, ver))
     if (args.multiCuda):
         torch.save(net.module.state_dict(), saveModelName)
@@ -205,11 +208,12 @@ def initEnv(args):
             raise 'Model path error'
         if (args.eval and not os.path.exists(args.validDataset)):
             raise 'validDataset path error'
-        if (args.featModel not in acceptModelList):
-            raise 'featModel error.\n\tChoices:{}'.format(acceptModelList)
-        if (args.featModel in featModelList and not args.eval):
-            raise 'Model pointnet2Feat can only use in validation mode'
-        if (args.featModel in sepModelList) : args.sepModel = True
+        if (args.modelType not in acceptModelList):
+            raise 'modelType error.\n\tChoices:{}'.format(acceptModelList)
+        if (args.modelType in featModelList and not args.eval):
+            raise 'Model *Feat can only use in validation mode'
+        if (args.modelType in featModelList and args.eval) : args.sepModel = True 
+        if (args.modelType in sepModelList) : args.sepModel = True
         if (args.L1Loss or args.L2Loss) : args.featLoss = True
 
         textLog = textIO(args)
@@ -257,14 +261,14 @@ if (__name__ == '__main__'):
     torch.cuda.manual_seed_all(randSeed)
     np.random.seed(randSeed)
     
-    if (args.featModel == 'pointnetComp') : net = PointNetComp(40, True)# cls, feat1, feat2 = net(pc1, pc2)
-    elif (args.featModel == 'pointnetFeat') : net = PointNetFeat(True, True)# feat = net(pc)
-    elif (args.featModel == 'pointnet') : net = PointNet(retGlobFeat = True)# cls, feat = net(pc)
-    elif (args.featModel == 'pointnet2Comp') : net = PointNet2Comp(0, 40)# cls, feat1, feat2 = net(pc1, pc2)
-    elif (args.featModel == 'pointnet2Feat') : net = PointNet2Feat(0)# feat = net(pc)
-    elif (args.featModel == 'pointnet2') : net = PointNet2(retGlobFeat = True)# cls, feat = net(pc)
-    elif (args.featModel == 'dgcnnFeat') : net = DGCNNFeat(512, 20)# feat = net(pc)
-    elif (args.featModel == 'dgcnn') : net = DGCNN(retGlobFeat = True)# cls, feat = net(pc)
+    if (args.modelType == 'pointnetComp') : net = PointNetComp(40, True)# cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.modelType == 'pointnetFeat') : net = PointNetFeat(True, True)# feat = net(pc)
+    elif (args.modelType == 'pointnet') : net = PointNet(retGlobFeat = True)# cls, feat = net(pc)
+    elif (args.modelType == 'pointnet2Comp') : net = PointNet2Comp(0, 40)# cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.modelType == 'pointnet2Feat') : net = PointNet2Feat(0)# feat = net(pc)
+    elif (args.modelType == 'pointnet2') : net = PointNet2(retGlobFeat = True)# cls, feat = net(pc)
+    elif (args.modelType == 'dgcnnFeat') : net = DGCNNFeat(512, 20)# feat = net(pc)
+    elif (args.modelType == 'dgcnn') : net = DGCNN(retGlobFeat = True)# cls, feat = net(pc)
     
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)
