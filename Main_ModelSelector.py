@@ -19,9 +19,9 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from Module_ModelSelector import PointNet, PointNetFeat, PointNetComp, PointNet2, PointNet2Feat, PointNet2Comp, DGCNN, DGCNNFeat
+from Module_PointNetSeries import PointNetCls, PointNetFeat, PointNetComp, PointNet2Cls, PointNet2Feat, PointNet2Comp, DGCNN, DGCNNFeat
 from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
-from Module_ModelSelector_DataLoader import ModelNet40H5, ModelSelectorValidDataset
+from Module_ModelNet40Series_DataLoader import ModelNet40H5, ModelSelectorValidDataset, GetModelNet40H5ReturnType
 
 from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO
@@ -39,20 +39,30 @@ def eval_one_epoch(net, testLoader, args):
     avgLossDict = GetModelSelectorCriterionLossDict(args)
     avgLoss = 0
     cnt = 0
-    for srcPC, tmpPC, label in tqdm(testLoader):
-        if (args.cuda):
-            srcPC = srcPC.cuda()
-            tmpPC = tmpPC.cuda()
-            label = label.cuda()
+    for package in tqdm(trainLoader):
+        # srcPC, label              : loaderType=cls
+        # srcPC, tmpPC, label       : loaderType=glob2
+        # srcPC, tmpPC, negPC, label: loaderType=triplet
+        srcPC = package[0].cuda() if (args.cuda) else package[0]
+        if (len(package) == 2):
+            label = package[1].cuda() if (args.cuda) else package[1]
+        elif (len(package) == 3):
+            tmpPC = package[1].cuda() if (args.cuda) else package[1]
+            label = package[2].cuda() if (args.cuda) else package[2]
+        elif (len(package) == 4):
+            tmpPC = package[1].cuda() if (args.cuda) else package[1]
+            negPC = package[2].cuda() if (args.cuda) else package[2]
+            label = package[3].cuda() if (args.cuda) else package[3]
         
+        # To be continue: triplet method inclusive
         if (args.sepModel):
             clsProbVec, globalFeat = net(srcPC)
             if (args.featLoss) : _, globalFeat2 = net(tmpPC)
             else : globalFeat2 = None
-            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
         else:
             clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
-            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
         
         for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
@@ -66,12 +76,22 @@ def train_one_epoch(net, opt, trainLoader, args):
     avgLossDict = GetModelSelectorCriterionLossDict(args)
     avgLoss = 0
     cnt = 0
-    for srcPC, tmpPC, label in tqdm(trainLoader):
-        if (args.cuda):
-            srcPC = srcPC.cuda()
-            tmpPC = tmpPC.cuda()
-            label = label.cuda()
-            
+    for package in tqdm(trainLoader):
+        # srcPC, label              : loaderType=cls
+        # srcPC, tmpPC, label       : loaderType=glob2
+        # srcPC, tmpPC, negPC, label: loaderType=triplet
+        srcPC = package[0].cuda() if (args.cuda) else package[0]
+        if (len(package) == 2):
+            label = package[1].cuda() if (args.cuda) else package[1]
+        elif (len(package) == 3):
+            tmpPC = package[1].cuda() if (args.cuda) else package[1]
+            label = package[2].cuda() if (args.cuda) else package[2]
+        elif (len(package) == 4):
+            tmpPC = package[1].cuda() if (args.cuda) else package[1]
+            negPC = package[2].cuda() if (args.cuda) else package[2]
+            label = package[3].cuda() if (args.cuda) else package[3]
+        
+        # To be continue: triplet method inclusive
         opt.zero_grad()
         if (args.sepModel):
             clsProbVec, globalFeat = net(srcPC)
@@ -79,10 +99,10 @@ def train_one_epoch(net, opt, trainLoader, args):
             else : globalFeat2 = None
             # loss = F.nll_loss(clsProbVec, label.squeeze())
             # lossDict = {'clsLoss' : loss}
-            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
         else:
             clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
-            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
         loss.backward()
         opt.step()
         
@@ -215,8 +235,10 @@ def initEnv(args):
             raise 'Model *Feat can only use in validation mode'
         if (args.modelType in featModelList and args.eval) : args.sepModel = True 
         if (args.modelType in sepModelList) : args.sepModel = True
-        if (args.L1Loss or args.L2Loss) : args.featLoss = True
-
+        if (args.L1Loss or args.L2Loss or args.tripletMg) : args.featLoss = True
+        
+        args.loaderType = GetModelNet40H5ReturnType(args)
+        
         textLog = textIO(args)
         textLog.writeLog(time.ctime())
         textLog.writeLog(args.__str__())
@@ -262,14 +284,14 @@ if (__name__ == '__main__'):
     torch.cuda.manual_seed_all(randSeed)
     np.random.seed(randSeed)
     
-    if (args.modelType == 'pointnetComp') : net = PointNetComp(40, True)# cls, feat1, feat2 = net(pc1, pc2)
-    elif (args.modelType == 'pointnetFeat') : net = PointNetFeat(True, True)# feat = net(pc)
-    elif (args.modelType == 'pointnet') : net = PointNet(retGlobFeat = True)# cls, feat = net(pc)
-    elif (args.modelType == 'pointnet2Comp') : net = PointNet2Comp(0, 40)# cls, feat1, feat2 = net(pc1, pc2)
-    elif (args.modelType == 'pointnet2Feat') : net = PointNet2Feat(0)# feat = net(pc)
-    elif (args.modelType == 'pointnet2') : net = PointNet2(retGlobFeat = True)# cls, feat = net(pc)
-    elif (args.modelType == 'dgcnnFeat') : net = DGCNNFeat(512, 20)# feat = net(pc)
-    elif (args.modelType == 'dgcnn') : net = DGCNN(retGlobFeat = True)# cls, feat = net(pc)
+    if (args.modelType == 'pointnetComp') : net = PointNetComp(40, True)#       cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.modelType == 'pointnetFeat') : net = PointNetFeat(True, True)#   feat = net(pc)
+    elif (args.modelType == 'pointnet') : net = PointNetCls(retGlobFeat = True)#   cls, feat = net(pc)
+    elif (args.modelType == 'pointnet2Comp') : net = PointNet2Comp(0, 40)#      cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.modelType == 'pointnet2Feat') : net = PointNet2Feat(0)#          feat = net(pc)
+    elif (args.modelType == 'pointnet2') : net = PointNet2Cls(retGlobFeat = True)# cls, feat = net(pc)
+    elif (args.modelType == 'dgcnnFeat') : net = DGCNNFeat(512, 20)#            feat = net(pc)
+    elif (args.modelType == 'dgcnn') : net = DGCNN(retGlobFeat = True)#         cls, feat = net(pc)
     
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)
@@ -281,14 +303,16 @@ if (__name__ == '__main__'):
                                              srcPointNum=args.inputPoints, 
                                              tmpPointNum=args.inputPoints, 
                                              gaussianNoise=args.gaussianNoise, 
-                                             scaling=args.scaling), 
+                                             scaling=args.scaling, 
+                                             retType=args.loaderType), 
                                  batch_size=args.batchSize, shuffle=True)
         
         trainLoader = DataLoader(ModelNet40H5(dataPartition='train', DIR_PATH=args.dataset, 
                                               srcPointNum=args.inputPoints, 
                                               tmpPointNum=args.inputPoints, 
                                               gaussianNoise=args.gaussianNoise, 
-                                              scaling=args.scaling), 
+                                              scaling=args.scaling, 
+                                              retType=args.loaderType), 
                                  batch_size=args.batchSize, shuffle=True)
         
         train(net, trainLoader, validLoader, textLog, boardLog, args)

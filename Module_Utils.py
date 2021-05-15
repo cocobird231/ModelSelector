@@ -17,11 +17,11 @@ DEG2RAD = 3.1415926 / 180.0
 #                       Class Definition
 #############################################################
 class Rigid():
-    def __init__(self, rotation = 0, translation = 0, eulerAng = [], getRandF = False):
+    def __init__(self, rotation = 0, translation = 0, eulerAng = [], getRandF = False, randAngRange = 90, randTransRange = 0.5):
         self.rotation = rotation
         self.translation = translation
         self.eulerAng = eulerAng
-        if (getRandF) : self.getRandomRigid()
+        if (getRandF) : self.getRandomRigid(randAngRange, randTransRange)
     
     def getRandomRigid(self, angleRange = 90, translationRange = 0.5):
         anglex = np.random.uniform(-angleRange, angleRange) * DEG2RAD
@@ -32,13 +32,21 @@ class Rigid():
         self.translation = np.array([np.random.uniform(-translationRange, translationRange), 
                                      np.random.uniform(-translationRange, translationRange), 
                                      np.random.uniform(-translationRange, translationRange)]).astype('float32')
-
+        return Rigid(self.rotation, self.translation, self.eulerAng)
     def getInvRigid(self):
         rotation_inv = self.rotation.T
         translation_inv = -rotation_inv.dot(self.translation)
         eulerAng_inv = -self.eulerAng[::-1]
         return Rigid(rotation_inv, translation_inv, eulerAng_inv)
-
+    
+    def _getOutputStr(self):
+        return 'Rotation   :\n{}\nTranslation:\n{}\nEulerAngle :\n{}'.format(self.rotation, self.translation, self.eulerAng)
+    
+    def __repr__(self):
+        return self._getOutputStr()
+    
+    def __str__(self):
+        return self._getOutputStr()
 
 class UnitModelUtils:
     def __init__(self, modelPath = '', translation = np.zeros(3), rotation = np.eye(3), scale = 1.0, label = 'None'):
@@ -129,6 +137,7 @@ def ICPIter(templatePC, targetPC, initTransform, iterSize = 50, iterStep = 0.2):
         o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration = iterSize))
     return ICP_TRANSFORM
 
+
 def ICPMotion(ICP_PC, tempPC, defaultTrans, iterSize, iterStep):
     viewer = o3d.visualization.Visualizer()
     viewer.create_window('Viewer', 600, 600)
@@ -151,32 +160,6 @@ def ICPMotion(ICP_PC, tempPC, defaultTrans, iterSize, iterStep):
     viewer.remove_geometry(ICP_PC)
     viewer.remove_geometry(tempPC)
     return
-
-
-#############################################################
-#               ModelNet40 Dataset Implementation
-#############################################################
-def WalkModelNet40ByCatName(DIR_PATH : str, CAT_PATH : str, extName : str = '.off', retFile : str = 'path'):
-    assert retFile == 'all' or retFile == 'path' or retFile == 'name'
-    filePathList = []
-    fileNameList = []
-    for dirpath, dirnames, filename in os.walk(os.path.join(DIR_PATH, CAT_PATH)):
-        for modelName in filename:
-            if (modelName[-len(extName):] == extName):
-                filePathList.append(os.path.join(dirpath, modelName))
-                fileNameList.append(modelName)
-    if (retFile == 'all') : return filePathList, fileNameList
-    if (retFile == 'path') : return filePathList
-    if (retFile == 'name') : return fileNameList
-
-
-def WalkModelNet40CatDIR(DIR_PATH : str):
-    catList = []
-    for dirpath, dirnames, filename in os.walk(DIR_PATH):
-        for catdir in dirnames:
-            catList.append(catdir)
-        break
-    return catList
 
 
 #############################################################
