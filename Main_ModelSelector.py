@@ -77,9 +77,9 @@ def train_one_epoch(net, opt, trainLoader, args):
             clsProbVec, globalFeat = net(srcPC)
             if (args.featLoss) : _, globalFeat2 = net(tmpPC)
             else : globalFeat2 = None
-            loss = F.nll_loss(clsProbVec, label.squeeze())
-            lossDict = {'clsLoss' : loss.item()}
-            # loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
+            # loss = F.nll_loss(clsProbVec, label.squeeze())
+            # lossDict = {'clsLoss' : loss}
+            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
         else:
             clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
             loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, clsProbVec, label, args)
@@ -192,6 +192,7 @@ def CalBestTemplate(net, testLoader, args):
             rank = 'Out of Rank'
         # print(srcModelU.path, rank)
         totalRankDict[rank] += 1
+    textLog.writeLog('Total Rank:\n{}'.format(totalRankDict))
     print(totalRankDict)
     return
 
