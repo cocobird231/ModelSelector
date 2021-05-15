@@ -14,7 +14,7 @@ def ModelSelectorCriterion(srcFeat, tmpFeat, clsProbVec, label, args):
     lossDict['clsLoss'] = clsLoss
     if (args.L1Loss) : lossDict['l1Loss'] = F.l1_loss(srcFeat, tmpFeat)
     if (args.L2Loss) : lossDict['l2Loss'] = F.mse_loss(srcFeat, tmpFeat)
-    loss = torch.tensor(0, requires_grad=True).to(srcFeat)
+    loss = 0
     for key in lossDict:
         loss += lossDict[key]
     return loss, lossDict
