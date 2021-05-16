@@ -236,6 +236,7 @@ def initEnv(args):
         if (args.modelType in featModelList and args.eval) : args.sepModel = True 
         if (args.modelType in sepModelList) : args.sepModel = True
         if (args.L1Loss or args.L2Loss or args.tripletMg) : args.featLoss = True
+        if (args.DP) : args.batchSize = 1
         
         args.loaderType = GetModelNet40H5ReturnType(args)
         

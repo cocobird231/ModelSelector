@@ -30,7 +30,7 @@ class ModelNet40H5(Dataset):# modelnet40_ply_hdf5_2048 is a 2048 points pcd norm
     def __init__(self, DIR_PATH : str, dataPartition = 'None', 
                  tmpPointNum = 1024, srcPointNum = 1024, 
                  gaussianNoise = True, randView = False, scaling = False, 
-                 angleRange = 90, translationRange = 0.5, scalingRange = 0.2, retType = 'cls'):
+                 angleRange = 90, translationRange = 0.5, scalingRange = 0.2, retType = 'cls', randDropout = False):
         self.data, self.label = self.load_data(DIR_PATH, dataPartition)
         
         self.tmpPointNum = tmpPointNum
@@ -41,6 +41,7 @@ class ModelNet40H5(Dataset):# modelnet40_ply_hdf5_2048 is a 2048 points pcd norm
         self.angleRange = angleRange
         self.translationRange = translationRange
         self.scalingRange = scalingRange
+        self.DP = randDropout
         
         # cls:      return pc1, label (pc1:Nx3)
         # glob2:    return pc1, pc2, label (pc2 is nearly equivalent to pc1)
@@ -81,6 +82,9 @@ class ModelNet40H5(Dataset):# modelnet40_ply_hdf5_2048 is a 2048 points pcd norm
         return self.data.shape[0]
     
     def __getitem__(self, item):
+        if (self.DP):
+            self.srcPointNum = int(np.random.uniform(1024, 2048))
+            self.tmpPointNum = int(np.random.uniform(1024, 2048))
         pc = self.data[item]
         pc1 = np.random.permutation(pc)[:self.srcPointNum]
         pc1 = rotate_pointCloud(pc1)

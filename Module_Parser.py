@@ -43,8 +43,8 @@ def ModelSelectorParser(acceptModelList):
                         default=False, help='Training via viewed point cloud')
     parser.add_argument('--scaling', action='store_true', 
                         default=False, help='Training via scaled point cloud')
-    parser.add_argument('--RD', type=float, 
-                        default=None, help='Random dropout point cloud during training')
+    parser.add_argument('--DP', action='store_true', 
+                        default=False, help='Random dropout point cloud during training. When true, ignore batchSize and inputPoints.')
     parser.add_argument('--modelName', type=str, 
                         default=None, help='Save model file name: {NAME}.pth (default: featModel)')
     parser.add_argument('--saveModelDir', type=str, 
