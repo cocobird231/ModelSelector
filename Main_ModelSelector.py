@@ -305,7 +305,8 @@ if (__name__ == '__main__'):
                                              tmpPointNum=args.inputPoints, 
                                              gaussianNoise=args.gaussianNoise, 
                                              scaling=args.scaling, 
-                                             retType=args.loaderType), 
+                                             retType=args.loaderType, 
+                                             randDropout=args.DP), 
                                  batch_size=args.batchSize, shuffle=True)
         
         trainLoader = DataLoader(ModelNet40H5(dataPartition='train', DIR_PATH=args.dataset, 
@@ -313,7 +314,8 @@ if (__name__ == '__main__'):
                                               tmpPointNum=args.inputPoints, 
                                               gaussianNoise=args.gaussianNoise, 
                                               scaling=args.scaling, 
-                                              retType=args.loaderType), 
+                                              retType=args.loaderType, 
+                                              randDropout=args.DP), 
                                  batch_size=args.batchSize, shuffle=True)
         
         train(net, trainLoader, validLoader, textLog, boardLog, args)
