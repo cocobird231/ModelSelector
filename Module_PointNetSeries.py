@@ -342,7 +342,7 @@ class PointNet2Feat(nn.Module):
         x_xyz, x_feat = self.sa1(x_xyz, x_feat)
         x_xyz, x_feat = self.sa2(x_xyz, x_feat)
         x_xyz, x_feat = self.sa3(x_xyz, x_feat)
-        return x_feat.squeeze()
+        return x_feat.squeeze(-1)
 
 
 class PointNet2Cls(nn.Module):
@@ -358,6 +358,7 @@ class PointNet2Cls(nn.Module):
                               nn.ReLU(True), 
                               nn.Dropout(0.5), 
                               nn.Linear(256, catSize))
+    
     def forward(self, x):
         globFeat = self.features(x)
         if (self.retGlobF) : return F.log_softmax(self.fc_layer(globFeat), dim=1), globFeat

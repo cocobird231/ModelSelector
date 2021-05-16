@@ -43,6 +43,12 @@ def eval_one_epoch(net, testLoader, args):
         # srcPC, label              : loaderType=cls
         # srcPC, tmpPC, label       : loaderType=glob2
         # srcPC, tmpPC, negPC, label: loaderType=triplet
+        
+        if (args.DP):
+            randPointsPerBatch = int(np.random.uniform(1024, 2048))
+            for i in range(0, len(package) - 1):
+                package[i] = package[i][:, :randPointsPerBatch, :]
+        
         srcPC = package[0].cuda() if (args.cuda) else package[0]
         if (len(package) == 2):
             label = package[1].cuda() if (args.cuda) else package[1]
@@ -80,6 +86,12 @@ def train_one_epoch(net, opt, trainLoader, args):
         # srcPC, label              : loaderType=cls
         # srcPC, tmpPC, label       : loaderType=glob2
         # srcPC, tmpPC, negPC, label: loaderType=triplet
+        
+        if (args.DP):
+            randPointsPerBatch = int(np.random.uniform(1024, 2048))
+            for i in range(0, len(package) - 1):
+                package[i] = package[i][:, :randPointsPerBatch, :]
+        
         srcPC = package[0].cuda() if (args.cuda) else package[0]
         if (len(package) == 2):
             label = package[1].cuda() if (args.cuda) else package[1]
@@ -236,7 +248,6 @@ def initEnv(args):
         if (args.modelType in featModelList and args.eval) : args.sepModel = True 
         if (args.modelType in sepModelList) : args.sepModel = True
         if (args.L1Loss or args.L2Loss or args.tripletMg) : args.featLoss = True
-        if (args.DP) : args.batchSize = 1
         
         args.loaderType = GetModelNet40H5ReturnType(args)
         
@@ -305,8 +316,7 @@ if (__name__ == '__main__'):
                                              tmpPointNum=args.inputPoints, 
                                              gaussianNoise=args.gaussianNoise, 
                                              scaling=args.scaling, 
-                                             retType=args.loaderType, 
-                                             randDropout=args.DP), 
+                                             retType=args.loaderType), 
                                  batch_size=args.batchSize, shuffle=True)
         
         trainLoader = DataLoader(ModelNet40H5(dataPartition='train', DIR_PATH=args.dataset, 
@@ -314,8 +324,7 @@ if (__name__ == '__main__'):
                                               tmpPointNum=args.inputPoints, 
                                               gaussianNoise=args.gaussianNoise, 
                                               scaling=args.scaling, 
-                                              retType=args.loaderType, 
-                                              randDropout=args.DP), 
+                                              retType=args.loaderType), 
                                  batch_size=args.batchSize, shuffle=True)
         
         train(net, trainLoader, validLoader, textLog, boardLog, args)
