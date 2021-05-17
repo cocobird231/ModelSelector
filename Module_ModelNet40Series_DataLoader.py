@@ -14,9 +14,9 @@ import open3d as o3d
 
 from torch.utils.data import Dataset
 
-from Module_Utils import jitter_pointcloud, scaling_pointCloud, rotate_pointCloud, ModelUtils
+from Module_Utils import jitter_pointcloud, scaling_pointCloud, rotate_pointCloud, ModelUtils, Rigid
 
-ModelNet40H5ReturnTypeList = ['cls', 'glob2', 'triplet']
+ModelNet40H5ReturnTypeList = ['cls', 'glob2', 'triplet', 'lk']
 
 def GetModelNet40H5ReturnType(args):
     if (args.L1Loss or args.L2Loss) : return 'glob2'
@@ -26,11 +26,13 @@ def GetModelNet40H5ReturnType(args):
 #############################################################
 #                       Training Dataset
 #############################################################
+# Support ModelSelector PointNetLK
 class ModelNet40H5(Dataset):# modelnet40_ply_hdf5_2048 is a 2048 points pcd normalized into unit sphere.
     def __init__(self, DIR_PATH : str, dataPartition = 'None', 
                  tmpPointNum = 1024, srcPointNum = 1024, 
                  gaussianNoise = True, randView = False, scaling = False, 
                  angleRange = 90, translationRange = 0.5, scalingRange = 0.2, retType = 'cls'):
+        
         self.data, self.label = self.load_data(DIR_PATH, dataPartition)
         
         self.tmpPointNum = tmpPointNum
@@ -81,12 +83,13 @@ class ModelNet40H5(Dataset):# modelnet40_ply_hdf5_2048 is a 2048 points pcd norm
         return self.data.shape[0]
     
     def __getitem__(self, item):
+        rigidAB = Rigid(getRandF = True, randAngRange = self.angleRange, randTransRange = self.translationRange)
+        
         pc = self.data[item]
         pc1 = np.random.permutation(pc)[:self.srcPointNum]
-        pc1 = rotate_pointCloud(pc1)
         if (self.pc2F):
             pc2 = np.random.permutation(pc)[:self.tmpPointNum]
-            pc2 = rotate_pointCloud(pc2)
+            pc2 = rotate_pointCloud(pc2, rigidAB)
         if (self.pc3F):
             # Select label index that differs with pc1 but as same category
             catDataIdxList = self.catDataIdxDict[self.label[item].item()]
@@ -111,11 +114,14 @@ class ModelNet40H5(Dataset):# modelnet40_ply_hdf5_2048 is a 2048 points pcd norm
             return pc1.astype('float32'), pc2.astype('float32'), self.label[item]
         elif (self.retType == 'triplet'):
             return pc1.astype('float32'), pc2.astype('float32'), pc3.astype('float32'), self.label[item]
+        elif (self.retType == 'lk'):
+            return pc1.astype('float32'), pc2.astype('float32'), rigidAB.getTransMat().astype('float32')
 
 
 #############################################################
 #               ModelSelector Validation Dataset
 #############################################################
+# Support ModelSelector
 class ModelSelectorValidDataset():
     def __init__(self, VALID_DIR : str, specCatList = []):# -> VALID_DIR: Directory path for ModelNet40_ModelSelector_VALID
         self.srcPCDList, self.srcPathList, self.ansPathList, self.catList, self.catPCDsDict = self.getModelsFromModelSelectorVALIDDataset(VALID_DIR, specCatList)
@@ -168,6 +174,45 @@ class ModelSelectorValidDataset():
 
 
 #############################################################
+#               Registration Validation Dataset
+#############################################################
+# Support PointNetLK DCP ICP
+class RegistrationValidDataset(Dataset):
+    def __init__(self, DIR_PATH : str):
+        self.tmpPCDList, self.tarPCDList, self.rotMatList, self.transVecList = self.loadDataFromCSV(DIR_PATH)
+        
+    def loadDataFromCSV(self, DIR_PATH : str):
+        tmpPCDList = []
+        tarPCDList = []
+        rotMatList = []
+        transVecList = []
+        with open(os.path.join(DIR_PATH, 'rigids.csv'), 'r', encoding = 'utf-8', newline = '') as f:
+            csvReader = csv.reader(f)
+            for i, row in enumerate(csvReader):
+                if (i == 0) : continue
+                tmpPCD = o3d.io.read_point_cloud(os.path.join(DIR_PATH, 'template', '%s.pcd' %row[0]))
+                tarPCD = o3d.io.read_point_cloud(os.path.join(DIR_PATH, 'target', '%s.pcd' %row[1]))
+                rotStr = row[2].replace('[', '').replace(']', '').strip().split('\n')
+                rotMat = np.asarray([[float(itemStr) for itemStr in rotStr[i].split()] for i in range(3)])
+                transStr = row[3].replace('[', '').replace(']', '').strip().split()
+                transVec = np.asarray([float(item) for item in transStr])
+
+                tmpPCDList.append(np.asarray(tmpPCD.points))
+                tarPCDList.append(np.asarray(tarPCD.points))
+                rotMatList.append(rotMat)
+                transVecList.append(transVec)
+        return tmpPCDList, tarPCDList, rotMatList, transVecList
+    
+    def __len__(self):
+        return len(self.tmpPCDList)
+    
+    def __getitem__(self, item):
+        return self.tmpPCDList[item].astype('float32'), self.tarPCDList[item].astype('float32'), \
+                self.rotMatList[item].astype('float32'), self.transVecList[item].astype('float32')
+
+
+
+#############################################################
 #               ModelNet40 Dataset Implementation
 #############################################################
 def WalkModelNet40ByCatName(DIR_PATH : str, CAT_PATH : str, extName : str = '.off', retFile : str = 'path'):
@@ -193,6 +238,8 @@ def WalkModelNet40CatDIR(DIR_PATH : str):
     return catList
 
 
+
+#############################################################
 if __name__ == '__main__':
 
     import sys

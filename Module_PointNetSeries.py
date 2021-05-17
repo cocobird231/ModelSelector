@@ -101,7 +101,7 @@ class PointNetFeat(nn.Module):
 
 class PointNetCls(nn.Module):
     def __init__(self, feat = None, k=40, retGlobFeat = False):
-        super(PointNetComp, self).__init__()
+        super(PointNetCls, self).__init__()
         self.retGlobF = retGlobFeat
         self.features = PointNetFeat(True, True) if (not feat) else feat
         self.fc1 = nn.Linear(1024, 512)

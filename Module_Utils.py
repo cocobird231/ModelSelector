@@ -39,6 +39,9 @@ class Rigid():
         eulerAng_inv = -self.eulerAng[::-1]
         return Rigid(rotation_inv, translation_inv, eulerAng_inv)
     
+    def getTransMat(self):
+        return np.block([[self.rotation, self.translation.reshape(3, -1)], [np.eye(4)[-1]]])
+    
     def _getOutputStr(self):
         return 'Rotation   :\n{}\nTranslation:\n{}\nEulerAngle :\n{}'.format(self.rotation, self.translation, self.eulerAng)
     
