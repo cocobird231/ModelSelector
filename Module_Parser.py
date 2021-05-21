@@ -19,7 +19,7 @@ def ModelSelectorParser(acceptModelList):
     parser.add_argument('-m', '--modelPath',    required=False, type=str, metavar='PATH', 
                         default='models/model_ModelSelector_best_pointnet_scaling_noL1.pth', help='Pre-trained model path for ModelSelector')# Windows test
     parser.add_argument('-t', '--modelType',    required=False, type=str, metavar='N', 
-                        default='pointnetComp', choices=acceptModelList, help='Feature extractor')# Windows test
+                        default='pointnet', choices=acceptModelList, help='Feature extractor')# Windows test
     # Training arguments
     parser.add_argument('--eval', action='store_true', 
                         default=False, help='Run evaluation mode')# Windows test
