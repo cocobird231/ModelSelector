@@ -39,7 +39,7 @@ def eval_one_epoch(net, testLoader, args):
     avgLossDict = GetModelSelectorCriterionLossDict(args)
     avgLoss = 0
     cnt = 0
-    for package in tqdm(trainLoader):
+    for package in tqdm(testLoader):
         # srcPC, label              : loaderType=cls
         # srcPC, tmpPC, label       : loaderType=glob2
         # srcPC, tmpPC, negPC, label: loaderType=triplet
