@@ -207,24 +207,22 @@ def CalBestTemplate(net, testLoader, args):
             rankList.append([catModelU.path, loss])
         rankList = sorted(rankList, key=itemgetter(1))
         rankPathList = np.array(rankList)[:,0]
-        rank = ''
         if (pathAns in rankPathList[:1]):
-            rank = 'Rank 1'
-        elif (pathAns in rankPathList[:3]):
-            rank = 'Rank 3'
-        elif (pathAns in rankPathList[:5]):
-            rank = 'Rank 5'
-        elif (pathAns in rankPathList[:10]):
-            rank = 'Rank 10'
-        elif (pathAns in rankPathList[:20]):
-            rank = 'Rank 20'
-        elif (pathAns in rankPathList[:30]):
-            rank = 'Rank 30'
+            totalRankDict['Rank 1'] += 1
+        if (pathAns in rankPathList[:3]):
+            totalRankDict['Rank 3'] += 1
+        if (pathAns in rankPathList[:5]):
+            totalRankDict['Rank 5'] += 1
+        if (pathAns in rankPathList[:10]):
+            totalRankDict['Rank 10'] += 1
+        if (pathAns in rankPathList[:20]):
+            totalRankDict['Rank 20'] += 1
+        if (pathAns in rankPathList[:30]):
+            totalRankDict['Rank 30'] += 1
         else:
-            rank = 'Out of Rank'
+            totalRankDict['Out of Rank'] += 1
         # print(srcModelU.path, rank)
-        totalRankDict[rank] += 1
-    textLog.writeLog('Total Rank:\n{}'.format(totalRankDict))
+    textLog.writeLog('#{}'.format(totalRankDict))
     print(totalRankDict)
     return
 
