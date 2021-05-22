@@ -124,6 +124,77 @@ class PointNetCls(nn.Module):
 
 
 class PointNetComp(nn.Module):
+    def __init__(self, global_feat = True, feature_transform = False, k = 40):
+        super(PointNetComp, self).__init__()
+        self.stn = STNkd(k=3)
+        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 128, 1)
+        self.conv3 = torch.nn.Conv1d(128, 1024, 1)
+        self.bn1 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.bn3 = nn.BatchNorm1d(1024)
+        self.global_feat = global_feat
+        self.feature_transform = feature_transform
+        if self.feature_transform:
+            self.fstn = STNkd(k=64)
+        
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, k)
+        self.dropout = nn.Dropout(p=0.3)
+        self.bnc1 = nn.BatchNorm1d(512)
+        self.bnc2 = nn.BatchNorm1d(256)
+        self.relu = nn.ReLU()
+
+    def forward(self, x, x2):
+        trans = self.stn(x)
+        x = x.transpose(2, 1)
+        x = torch.bmm(x, trans)
+        x = x.transpose(2, 1)
+        x = F.relu(self.bn1(self.conv1(x)))
+
+        if self.feature_transform:
+            trans_feat = self.fstn(x)
+            x = x.transpose(2,1)
+            x = torch.bmm(x, trans_feat)
+            x = x.transpose(2,1)
+        else:
+            trans_feat = None
+        
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = self.bn3(self.conv3(x))
+        x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 1024)
+        globF = x.contiguous()
+        
+        trans = self.stn(x2)
+        x2 = x2.transpose(2, 1)
+        x2 = torch.bmm(x2, trans)
+        x2 = x2.transpose(2, 1)
+        x2 = F.relu(self.bn1(self.conv1(x2)))
+
+        if self.feature_transform:
+            trans_feat = self.fstn(x2)
+            x2 = x2.transpose(2,1)
+            x2 = torch.bmm(x2, trans_feat)
+            x2 = x2.transpose(2,1)
+        else:
+            trans_feat = None
+        
+        x2 = F.relu(self.bn2(self.conv2(x2)))
+        x2 = self.bn3(self.conv3(x2))
+        x2 = torch.max(x2, 2, keepdim=True)[0]
+        x2 = x2.view(-1, 1024)
+        globF2 = x2.contiguous()
+        
+        x = F.relu(self.bnc1(self.fc1(x)))
+        x = F.relu(self.bnc2(self.dropout(self.fc2(x))))
+        x = self.fc3(x)
+        return F.log_softmax(x, dim=1), globF, globF2
+
+
+'''
+class PointNetComp(nn.Module):
     def __init__(self, k=40, feature_transform=True):
         super(PointNetComp, self).__init__()
         self.features = PointNetFeat(global_feat=True, feature_transform=feature_transform)
@@ -146,6 +217,7 @@ class PointNetComp(nn.Module):
         x = F.relu(self.bn2(self.dropout(self.fc2(x))))
         x = self.fc3(x)
         return F.log_softmax(x, dim=1), globF, globF2
+'''
 
 
 #############################################################
@@ -272,7 +344,7 @@ class DGCNN(nn.Module):
 import os
 import sys
 sys.path.append(os.path.join('/home/wei/Desktop/votenet2', 'pointnet2'))
-from pointnet2_modules import PointnetSAModule
+# from pointnet2_modules import PointnetSAModule
 
 class PointNet2Comp(nn.Module):
     def __init__(self, input_feat_dim = 0, k = 40):
