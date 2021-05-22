@@ -192,10 +192,13 @@ def CalBestTemplate(net, testLoader, args):
             catPts = torch.tensor(catPCD).view(1, -1, 3)
             if (args.cuda) : catPts = catPts.cuda()
             
-            if (args.sepModel):
+            if (args.modelType in featModelList):
                 srcFeat = net(srcPts)
                 tmpFeat = net(catPts)
-            else:
+            elif (args.modelType in sepModelList):
+                _, srcFeat = net(srcPts)
+                _, tmpFeat = net(catPts)
+            elif (args.modelType in intModelList):
                 _, srcFeat, tmpFeat = net(srcPts, catPts)
             
             if (args.cuda): srcFeat = srcFeat.cpu()
