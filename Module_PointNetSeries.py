@@ -147,6 +147,8 @@ class PointNetComp(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x, x2):
+        x = x.transpose(2, 1)
+        x2 = x2.transpose(2, 1)
         trans = self.stn(x)
         x = x.transpose(2, 1)
         x = torch.bmm(x, trans)
@@ -344,7 +346,7 @@ class DGCNN(nn.Module):
 import os
 import sys
 sys.path.append(os.path.join('/home/wei/Desktop/votenet2', 'pointnet2'))
-# from pointnet2_modules import PointnetSAModule
+from pointnet2_modules import PointnetSAModule
 
 class PointNet2Comp(nn.Module):
     def __init__(self, input_feat_dim = 0, k = 40):
