@@ -11,7 +11,8 @@ import time
 import open3d as o3d
 import numpy as np
 
-from Module_Utils import jitter_pointcloud, scaling_pointCloud, rotate_pointCloud, WalkModelNet40CatDIR, WalkModelNet40ByCatName
+from Module_Utils import jitter_pointcloud, scaling_pointCloud, rotate_pointCloud
+from Module_ModelNet40Series_DataLoader import WalkModelNet40CatDIR, WalkModelNet40ByCatName
 
 
 def GenUnitSpherePCDFromMesh(modelPath : str, pointSize : int = 0):

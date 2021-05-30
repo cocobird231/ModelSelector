@@ -59,8 +59,11 @@ def ModelSelectorParser(acceptModelList):
                         default=False, help='Using L1 loss')
     parser.add_argument('--L2Loss', action='store_true', 
                         default=False, help='Using L2 loss')
+    parser.add_argument('--weight', type=float, 
+                        default=10.0, help='Weight for L1 and L2 loss')
     parser.add_argument('--tripletMg', type=float, 
                         default=None, help='Using MSE triplet loss with given margin')
+    
     parser.add_argument('--featLoss', action='store_true', help='Program implement only.')
     parser.add_argument('--loaderType', type=str, help='Program implement only.')
     

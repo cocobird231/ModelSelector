@@ -19,7 +19,8 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from Module_PointNetSeries import PointNetCls, PointNetFeat, PointNetComp, PointNet2Cls, PointNet2Feat, PointNet2Comp, DGCNN, DGCNNFeat
+from Module_PointNetSeries import PointNetCls, PointNetFeat, PointNetComp, \
+    PointNet2Cls, PointNet2Feat, PointNet2Comp, PointNet2Comp2, DGCNN, DGCNNFeat
 from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
 from Module_ModelNet40Series_DataLoader import ModelNet40H5, ModelSelectorValidDataset, GetModelNet40H5ReturnType
 
@@ -27,7 +28,7 @@ from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO
 
 sepModelList = ['pointnet', 'pointnet2', 'dgcnn']
-intModelList = ['pointnetComp', 'pointnet2Comp']
+intModelList = ['pointnetComp', 'pointnet2Comp', 'pointnet2Comp2']
 featModelList = ['pointnetFeat', 'pointnet2Feat', 'dgcnnFeat']
 acceptModelList = [*sepModelList, *intModelList, *featModelList]
 # Seperate models: pointnet, pointnet2, dgcnn               -> cls, feat = net(pc) or cls = net(pc)
@@ -45,7 +46,7 @@ def eval_one_epoch(net, testLoader, args):
         # srcPC, tmpPC, negPC, label: loaderType=triplet
         
         if (args.DP):
-            randPointsPerBatch = int(np.random.uniform(1024, 2048))
+            randPointsPerBatch = int(np.random.uniform(128, args.inputPoints))
             for i in range(0, len(package) - 1):
                 package[i] = package[i][:, :randPointsPerBatch, :]
         
@@ -88,7 +89,7 @@ def train_one_epoch(net, opt, trainLoader, args):
         # srcPC, tmpPC, negPC, label: loaderType=triplet
         
         if (args.DP):
-            randPointsPerBatch = int(np.random.uniform(1024, 2048))
+            randPointsPerBatch = int(np.random.uniform(128, args.inputPoints))
             for i in range(0, len(package) - 1):
                 package[i] = package[i][:, :randPointsPerBatch, :]
         
@@ -199,7 +200,11 @@ def CalBestTemplate(net, testLoader, args):
                 _, srcFeat = net(srcPts)
                 _, tmpFeat = net(catPts)
             elif (args.modelType in intModelList):
-                _, srcFeat, tmpFeat = net(srcPts, catPts)
+                if (args.modelType == 'pointnet2Comp2'):
+                    _, srcFeat = net(srcPts)
+                    _, tmpFeat = net(catPts)
+                else:
+                    _, srcFeat, tmpFeat = net(srcPts, catPts)
             
             if (args.cuda): srcFeat = srcFeat.cpu()
             if (args.cuda): tmpFeat = tmpFeat.cpu()
@@ -302,11 +307,12 @@ if (__name__ == '__main__'):
     elif (args.modelType == 'pointnet') : net = PointNetCls(retGlobFeat = True)#    cls, feat = net(pc)
     elif (args.modelType == 'pointnet2Comp') : net = PointNet2Comp(0, 40)#          cls, feat1, feat2 = net(pc1, pc2)
     elif (args.modelType == 'pointnet2Feat') : net = PointNet2Feat(0)#              feat = net(pc)
-    elif (args.modelType == 'pointnet2'):
-        featNet = PointNet2Feat()
-        net = PointNet2Cls(pn2Feat = featNet, retGlobFeat = True)#                  cls, feat = net(pc)
+    elif (args.modelType == 'pointnet2') : net = PointNet2Cls(retGlobFeat = True)#  cls, feat = net(pc)
     elif (args.modelType == 'dgcnnFeat') : net = DGCNNFeat(512, 20)#                feat = net(pc)
     elif (args.modelType == 'dgcnn') : net = DGCNN(retGlobFeat = True)#             cls, feat = net(pc)
+    elif (args.modelType == 'pointnet2Comp2'):
+        if (args.eval) : net = PointNet2Comp2(0, 40, 'cls')#                        cls, feat = net(pc)
+        else : net = PointNet2Comp2(0, 40, args.loaderType)#                        cls, feat1, feat2 = net(pc1, pc2)
     
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)

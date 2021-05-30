@@ -12,8 +12,8 @@ def ModelSelectorCriterion(srcFeat, tmpFeat, negFeat, clsProbVec, label, args):
     lossDict = dict()
     clsLoss = F.nll_loss(clsProbVec, label.squeeze())
     lossDict['clsLoss'] = clsLoss
-    if (args.L1Loss) : lossDict['l1Loss'] = F.l1_loss(srcFeat, tmpFeat) * 10
-    if (args.L2Loss) : lossDict['l2Loss'] = F.mse_loss(srcFeat, tmpFeat) * 10
+    if (args.L1Loss) : lossDict['l1Loss'] = F.l1_loss(srcFeat, tmpFeat) * args.weight
+    if (args.L2Loss) : lossDict['l2Loss'] = F.mse_loss(srcFeat, tmpFeat) * args.weight
     if (args.tripletMg):
         posLoss = F.mse_loss(srcFeat, tmpFeat)
         negLoss = F.mse_loss(srcFeat, negFeat)
