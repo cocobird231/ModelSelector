@@ -78,7 +78,7 @@ def GenModelSelecotrValidDatasetFromModelNet40(DIR_PATH, SAVE_DIR_PATH, categori
     return
 
 
-def GenSrcPCDFromValidDataset(SAVE_DIR_PATH, numOfModelsPerCat = 10):
+def GenSrcPCDFromValidDataset(SAVE_DIR_PATH, numOfModelsPerCat = 10, randDP = False):
     # Search model category
     catList = WalkModelNet40CatDIR(SAVE_DIR_PATH)
     if ('_src' in catList) : catList.remove('_src')
@@ -98,6 +98,9 @@ def GenSrcPCDFromValidDataset(SAVE_DIR_PATH, numOfModelsPerCat = 10):
         for i, pcdName in enumerate(catModelNameDict[catKey]):
             pcd = o3d.io.read_point_cloud(os.path.join(SAVE_DIR_PATH, catKey, pcdName))
             pcdPts = np.asarray(pcd.points)
+            if (randDP):
+                randPointSize = int(np.random.uniform(128, 2048))
+                pcdPts = pcdPts[:randPointSize, :]
             pcdPts = rotate_pointCloud(pcdPts)
             pcdPts = jitter_pointcloud(pcdPts)
             pcdPts = scaling_pointCloud(pcdPts)
@@ -118,9 +121,18 @@ def GenSrcPCDFromValidDataset(SAVE_DIR_PATH, numOfModelsPerCat = 10):
 
 
 if (__name__ == '__main__'):
+    # ModelSelectorValid
+    # MODELNET40_DIR = 'D:/Datasets/ModelNet40'
+    # VALID_DIR = 'D:/Datasets/ModelNet40_ModelSelector_VALID'
+    # sT = time.clock()
+    # GenModelSelecotrValidDatasetFromModelNet40(MODELNET40_DIR, VALID_DIR)
+    # GenSrcPCDFromValidDataset(VALID_DIR)
+    # print('Total use', time.clock() - sT, 'sec')
+    
+    # ModelSelectorValidDP
     MODELNET40_DIR = 'D:/Datasets/ModelNet40'
-    VALID_DIR = 'D:/Datasets/ModelNet40_ModelSelector_VALID'
+    VALID_DIR = 'D:/Datasets/ModelNet40_ModelSelector_VALID_DP'
     sT = time.clock()
-    GenModelSelecotrValidDatasetFromModelNet40(MODELNET40_DIR, VALID_DIR)
-    GenSrcPCDFromValidDataset(VALID_DIR)
+    GenModelSelecotrValidDatasetFromModelNet40(MODELNET40_DIR, VALID_DIR, pointSize=2048)
+    GenSrcPCDFromValidDataset(VALID_DIR, randDP=True)
     print('Total use', time.clock() - sT, 'sec')

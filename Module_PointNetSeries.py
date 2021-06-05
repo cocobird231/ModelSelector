@@ -349,7 +349,7 @@ sys.path.append(os.path.join('/home/wei/Desktop/votenet2', 'pointnet2'))
 from pointnet2_modules import PointnetSAModule
 
 class PointNet2Comp2(nn.Module):
-    def __init__(self, input_feat_dim = 0, k = 40, retType = 'glob2'):
+    def __init__(self, input_feat_dim = 3, k = 40, retType = 'glob2'):
         super().__init__()
         self.sa1 = PointnetSAModule(npoint=512, 
                                     radius=0.2, 

@@ -17,7 +17,8 @@ def ModelSelectorCriterion(srcFeat, tmpFeat, negFeat, clsProbVec, label, args):
     if (args.tripletMg):
         posLoss = F.mse_loss(srcFeat, tmpFeat)
         negLoss = F.mse_loss(srcFeat, negFeat)
-        lossDict['tripletMg'] = posLoss - negLoss + args.tripletMg if posLoss > negLoss - args.tripletMg else torch.tensor(0).to(srcFeat)
+        distLoss = posLoss - negLoss + args.tripletMg
+        lossDict['tripletMg'] = distLoss if distLoss.item() > 0 else torch.tensor(0).to(srcFeat)
     loss = 0
     for key in lossDict:
         loss += lossDict[key]

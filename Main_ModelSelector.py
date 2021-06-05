@@ -46,8 +46,8 @@ def eval_one_epoch(net, testLoader, args):
         # srcPC, tmpPC, negPC, label: loaderType=triplet
         
         if (args.DP):
-            randPointsPerBatch = int(np.random.uniform(128, args.inputPoints))
             for i in range(0, len(package) - 1):
+                randPointsPerBatch = int(np.random.uniform(128, args.inputPoints))
                 package[i] = package[i][:, :randPointsPerBatch, :]
         
         srcPC = package[0].cuda() if (args.cuda) else package[0]
@@ -89,8 +89,8 @@ def train_one_epoch(net, opt, trainLoader, args):
         # srcPC, tmpPC, negPC, label: loaderType=triplet
         
         if (args.DP):
-            randPointsPerBatch = int(np.random.uniform(128, args.inputPoints))
             for i in range(0, len(package) - 1):
+                randPointsPerBatch = int(np.random.uniform(128, args.inputPoints))
                 package[i] = package[i][:, :randPointsPerBatch, :]
         
         srcPC = package[0].cuda() if (args.cuda) else package[0]
