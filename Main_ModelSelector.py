@@ -305,14 +305,14 @@ if (__name__ == '__main__'):
     if (args.modelType == 'pointnetComp') : net = PointNetComp(40, True)#           cls, feat1, feat2 = net(pc1, pc2)
     elif (args.modelType == 'pointnetFeat') : net = PointNetFeat(True, True)#       feat = net(pc)
     elif (args.modelType == 'pointnet') : net = PointNetCls(retGlobFeat = True)#    cls, feat = net(pc)
-    elif (args.modelType == 'pointnet2Comp') : net = PointNet2Comp(0, 40)#          cls, feat1, feat2 = net(pc1, pc2)
-    elif (args.modelType == 'pointnet2Feat') : net = PointNet2Feat(0)#              feat = net(pc)
+    elif (args.modelType == 'pointnet2Comp') : net = PointNet2Comp(3, 40)#          cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.modelType == 'pointnet2Feat') : net = PointNet2Feat(3)#              feat = net(pc)
     elif (args.modelType == 'pointnet2') : net = PointNet2Cls(retGlobFeat = True)#  cls, feat = net(pc)
     elif (args.modelType == 'dgcnnFeat') : net = DGCNNFeat(512, 20)#                feat = net(pc)
     elif (args.modelType == 'dgcnn') : net = DGCNN(retGlobFeat = True)#             cls, feat = net(pc)
     elif (args.modelType == 'pointnet2Comp2'):
-        if (args.eval) : net = PointNet2Comp2(0, 40, 'cls')#                        cls, feat = net(pc)
-        else : net = PointNet2Comp2(0, 40, args.loaderType)#                        cls, feat1, feat2 = net(pc1, pc2)
+        if (args.eval) : net = PointNet2Comp2(3, 40, 'cls')#                        cls, feat = net(pc)
+        else : net = PointNet2Comp2(3, 40, args.loaderType)#                        cls, feat1, feat2 = net(pc1, pc2)
     
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)
