@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
 from Module_PointNetSeries import PointNetCls, PointNetFeat, PointNetComp, \
-    PointNet2Cls, PointNet2Feat, PointNet2Comp, PointNet2Comp2, DGCNN, DGCNNFeat
+    PointNet2Cls, PointNet2Feat, PointNet2Comp, PointNet2Comp2, PointNet2Comp3, DGCNN, DGCNNFeat
 from Module_ModelSelector_Criterion import ModelSelectorCriterion, GetModelSelectorCriterionLossDict
 from Module_ModelNet40Series_DataLoader import ModelNet40H5, ModelSelectorValidDataset, GetModelNet40H5ReturnType
 
@@ -28,7 +28,7 @@ from Module_Parser import ModelSelectorParser
 from Module_Utils import textIO
 
 sepModelList = ['pointnet', 'pointnet2', 'dgcnn']
-intModelList = ['pointnetComp', 'pointnet2Comp', 'pointnet2Comp2']
+intModelList = ['pointnetComp', 'pointnet2Comp', 'pointnet2Comp2', 'pointnet2Comp3']
 featModelList = ['pointnetFeat', 'pointnet2Feat', 'dgcnnFeat']
 acceptModelList = [*sepModelList, *intModelList, *featModelList]
 # Seperate models: pointnet, pointnet2, dgcnn               -> cls, feat = net(pc) or cls = net(pc)
@@ -313,6 +313,9 @@ if (__name__ == '__main__'):
     elif (args.modelType == 'pointnet2Comp2'):
         if (args.eval) : net = PointNet2Comp2(0, 40, 'cls')#                        cls, feat = net(pc)
         else : net = PointNet2Comp2(0, 40, args.loaderType)#                        cls, feat1, feat2 = net(pc1, pc2)
+    elif (args.modelType == 'pointnet2Comp3'):
+        if (args.eval) : net = PointNet2Comp3(0, 40, 'cls')#                        cls, feat = net(pc)
+        else : net = PointNet2Comp3(0, 40, args.loaderType)#                        cls, feat1, feat2 = net(pc1, pc2)
     
     if (args.multiCuda) : net = nn.DataParallel(net)
     net.to(device)

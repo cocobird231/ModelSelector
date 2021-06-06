@@ -346,7 +346,62 @@ class DGCNN(nn.Module):
 import os
 import sys
 sys.path.append(os.path.join('/home/wei/Desktop/votenet2', 'pointnet2'))
-from pointnet2_modules import PointnetSAModule
+from pointnet2_modules import PointnetSAModule, PointnetSAModuleMSG
+
+class PointNet2Comp3(nn.Module):
+    def __init__(self, input_feat_dim = 0, k = 40, retType = 'glob2'):
+        super().__init__()
+        self.sa1 = PointnetSAModuleMSG(npoint=512, 
+                                    radii=[0.1, 0.2, 0.4], 
+                                    nsamples=[16, 32, 128], 
+                                    mlps=[[input_feat_dim, 32, 32, 64], [input_feat_dim, 64, 64, 128], [input_feat_dim, 64, 96, 128]])
+        
+        inputCh = 64 + 128 + 128
+        self.sa2 = PointnetSAModuleMSG(npoint=128, 
+                                    radii=[0.2, 0.4, 0.8], 
+                                    nsamples=[32, 64, 128], 
+                                    mlps=[[inputCh, 64, 64, 128], [inputCh, 128, 128, 256], [inputCh, 128, 128, 256]])
+        
+        inputCh = 128 + 256 + 256
+        self.sa3 = PointnetSAModule(mlp=[inputCh, 256, 512, 1024])
+        
+        self.fc_layer = nn.Sequential(nn.Linear(1024, 512, bias=False), 
+                                      nn.BatchNorm1d(512), 
+                                      nn.ReLU(True), 
+                                      nn.Linear(512, 256, bias=False), 
+                                      nn.BatchNorm1d(256), 
+                                      nn.ReLU(True), 
+                                      nn.Dropout(0.5), 
+                                      nn.Linear(256, k))
+        
+        self.retType = retType
+        
+    def _break_up_pc(self, pc):
+        xyz = pc[..., 0:3].contiguous()
+        features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
+        return xyz, features
+        
+    def forward(self, x, x2 = None, x3 = None):
+        x_xyz, x_feat = self._break_up_pc(x)
+        x_xyz, x_feat = self.sa1(x_xyz, x_feat)
+        x_xyz, x_feat = self.sa2(x_xyz, x_feat)
+        x_xyz, x_feat = self.sa3(x_xyz, x_feat)
+        globF = x_feat.contiguous().squeeze(-1)
+        if (self.retType == 'glob2' or self.retType == 'triplet'):
+            x_xyz, x_feat = self._break_up_pc(x2)
+            x_xyz, x_feat = self.sa1(x_xyz, x_feat)
+            x_xyz, x_feat = self.sa2(x_xyz, x_feat)
+            x_xyz, x_feat = self.sa3(x_xyz, x_feat)
+            globF2 = x_feat.contiguous().squeeze(-1)
+            if (self.retType == 'triplet'):
+                x_xyz, x_feat = self._break_up_pc(x3)
+                x_xyz, x_feat = self.sa1(x_xyz, x_feat)
+                x_xyz, x_feat = self.sa2(x_xyz, x_feat)
+                x_xyz, x_feat = self.sa3(x_xyz, x_feat)
+                globF3 = x_feat.contiguous().squeeze(-1)
+                return F.log_softmax(self.fc_layer(globF), dim=1), globF, globF2, globF3
+            return F.log_softmax(self.fc_layer(globF), dim=1), globF, globF2
+        return F.log_softmax(self.fc_layer(globF), dim=1), globF
 
 class PointNet2Comp2(nn.Module):
     def __init__(self, input_feat_dim = 0, k = 40, retType = 'glob2'):
@@ -354,14 +409,14 @@ class PointNet2Comp2(nn.Module):
         self.sa1 = PointnetSAModule(npoint=512, 
                                     radius=0.2, 
                                     nsample=64, 
-                                    mlp=[input_feat_dim, 64, 64, 128])
+                                    mlp=[input_feat_dim, 64, 128])
         
         self.sa2 = PointnetSAModule(npoint=128, 
                                     radius=0.4, 
                                     nsample=64, 
-                                    mlp=[128, 128, 128, 256])
+                                    mlp=[128, 128, 256])
         
-        self.sa3 = PointnetSAModule(mlp=[256, 256, 512, 1024])
+        self.sa3 = PointnetSAModule(mlp=[256, 512, 1024])
         
         self.fc_layer = nn.Sequential(nn.Linear(1024, 512, bias=False), 
                                       nn.BatchNorm1d(512), 
