@@ -61,19 +61,27 @@ def eval_one_epoch(net, testLoader, args):
             negPC = package[2].cuda() if (args.cuda) else package[2]
             label = package[3].cuda() if (args.cuda) else package[3]
         
-        # To be continue: triplet method inclusive
+        # Support SepModel (glob2), glob2, triplet
         if (args.sepModel):
             clsProbVec, globalFeat = net(srcPC)
             if (args.featLoss) : _, globalFeat2 = net(tmpPC)
             else : globalFeat2 = None
+            # loss = F.nll_loss(clsProbVec, label.squeeze())
+            # lossDict = {'clsLoss' : loss}
             loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
         else:
-            clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
-            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
+            if (args.loaderType == 'glob2'):
+                clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+                loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
+            elif (args.loaderType == 'triplet'):
+                clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
+                loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label, args)
+        
         
         for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
         cnt += 1
+        
     for key in avgLossDict : avgLossDict[key] /= cnt
     return avgLoss / cnt, avgLossDict
 
@@ -104,7 +112,7 @@ def train_one_epoch(net, opt, trainLoader, args):
             negPC = package[2].cuda() if (args.cuda) else package[2]
             label = package[3].cuda() if (args.cuda) else package[3]
         
-        # To be continue: triplet method inclusive
+        # Support SepModel (glob2), glob2, triplet
         opt.zero_grad()
         if (args.sepModel):
             clsProbVec, globalFeat = net(srcPC)
@@ -114,14 +122,20 @@ def train_one_epoch(net, opt, trainLoader, args):
             # lossDict = {'clsLoss' : loss}
             loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
         else:
-            clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
-            loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
+            if (args.loaderType == 'glob2'):
+                clsProbVec, globalFeat, globalFeat2 = net(srcPC, tmpPC)
+                loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, None, clsProbVec, label, args)
+            elif (args.loaderType == 'triplet'):
+                clsProbVec, globalFeat, globalFeat2, globalFeatNeg = net(srcPC, tmpPC, negPC)
+                loss, lossDict = ModelSelectorCriterion(globalFeat, globalFeat2, globalFeatNeg, clsProbVec, label, args)
         loss.backward()
         opt.step()
+        
         
         for lossType in lossDict : avgLossDict[lossType] += lossDict[lossType].item()
         avgLoss += loss.item()
         cnt += 1
+        
     for key in avgLossDict : avgLossDict[key] /= cnt
     return avgLoss / cnt, avgLossDict
 
@@ -200,7 +214,7 @@ def CalBestTemplate(net, testLoader, args):
                 _, srcFeat = net(srcPts)
                 _, tmpFeat = net(catPts)
             elif (args.modelType in intModelList):
-                if (args.modelType == 'pointnet2Comp2'):
+                if (args.modelType == 'pointnet2Comp2' or args.modelType == 'pointnet2Comp3'):
                     _, srcFeat = net(srcPts)
                     _, tmpFeat = net(catPts)
                 else:
